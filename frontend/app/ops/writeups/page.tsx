@@ -136,11 +136,11 @@ export default function OpsWriteUpsPage() {
   useEffect(() => {
     fetch("/api/users/me", { credentials: "include" })
       .then(async (r) => (r.ok ? r.json() : {}))
-     r.json() : {}))
       .then((d) => {
         if (!d.isStaff) router.push("/login");
       })
-      .]);
+      .catch(() => {});
+  }, [router]);
 
   const moderate = async (id: number, action: "approve" | "reject") => {
     try {

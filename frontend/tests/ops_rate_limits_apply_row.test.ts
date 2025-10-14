@@ -58,6 +58,47 @@ function setupFetch() {
   return fetchMock;
 }
 
+function setupFetchSingleScope() {
+  const defaults = {
+    "flag-submit": "10/min",
+    "flag-submit-ip": "30/min",
+  };
+  const effective = {
+    "flag-submit": { user_rate: "10/min", ip_rate: "30/min" },
+  };
+  const presets = {
+    presets: {
+      competition: {
+        "flag-submit": { user_rate: "22/min", ip_rate: "33/min" },
+      },
+    },
+    env_presets: {},
+  };
+
+  const fetchMock = vi.fn((input: any, init?: any) => {
+    const url = typeof input === "string" ? input : input?.url;
+    const method = (init?.method || "GET").toUpperCase();
+
+    if (url === "/api/users/me" && method === "GET") {
+      return Promise.resolve(jsonResponse({ isSuperuser: true, isStaff: true }));
+    }
+    if (url?.startsWith("/api/ops/rate-limits") && method === "GET") {
+      return Promise.resolve(jsonResponse({ defaults, db_overrides: [], effective, cache: {} }));
+    }
+    if (url === "/api/ops/rate-limits/presets" && method === "GET") {
+      return Promise.resolve(jsonResponse(presets));
+    }
+    if (url === "/api/ops/rate-limits" && method === "POST") {
+      return Promise.resolve(jsonResponse({ ok: true }));
+    }
+    return Promise.resolve(jsonResponse({ detail: "Not found" }, 404));
+  });
+
+  // @ts-ignore
+  global.fetch = fetchMock;
+  return fetchMock;
+}
+
 describe("Ops Rate Limits apply-only-this-row action", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -101,5 +142,42 @@ describe("Ops Rate Limits apply-only-this-row action", () => {
 
     // Success toast appears
     await screen.findByText(/Applied override for flag-submit\./i);
+
+    // Only one Apply-only button should remain (the other row)
+    const remainingApplyButtons = screen.getAllByRole("button", { name: /Apply only this row/i });
+    expect(remainingApplyButtons.length).toBe(1);
+    // The remaining row should be the other scope (login)
+    const remainingRow = await screen.findByText("login");
+    expect(remainingRow).toBeTruthy();
+  });
+
+  it("applies single-scope preset and clears preview section", async () => {
+    const fetchMock = setupFetchSingleScope();
+
+    render(
+      <ToastProvider>
+        <OpsRateLimitsPage />
+      </ToastProvider>
+    );
+
+    await screen.findByText(/Rate Limits \(Ops\)/);
+
+    const previewBtn = await screen.findByRole("button", { name: /Preview competition/i });
+    fireEvent.click(previewBtn);
+
+    // Apply only this row (only one row exists)
+    const scopeCell = await screen.findByText("flag-submit");
+    const row = scopeCell.closest("tr")!;
+    const applyRowBtn = within(row).getByRole("button", { name: /Apply only this row/i });
+    fireEvent.click(applyRowBtn);
+
+    const confirmBtn = await screen.findByRole("button", { name: /Confirm apply/i });
+    fireEvent.click(confirmBtn);
+
+    // Success toast appears
+    await screen.findByText(/Applied override for flag-submit\./i);
+
+    // Preview table should be cleared (no Apply these changes button)
+    expect(screen.queryByRole("button", { name: /Apply these changes/i })).toBeNull();
   });
 });
