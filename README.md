@@ -50,6 +50,11 @@ Backend (Django)
     - Flag submission: 10/min per user + 30/min per IP (429 on exceed)
     - Login: 5/min per IP
 
+Ops (Rate limits viewer)
+- Frontend page: http://localhost:3000/ops/rate-limits (requires staff user in session)
+- Backend API: GET http://localhost:8000/api/ops/rate-limits
+  - Shows defaults, DB overrides, effective values, and cache state.
+
 Frontend (Next.js)
 - Location: frontend/
 - Minimal scaffold with App Router and Tailwind.

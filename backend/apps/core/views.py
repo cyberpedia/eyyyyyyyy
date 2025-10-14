@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import hmac
 import logging
+from typing import Dict, Any
 
 from django.contrib.auth import authenticate, login, logout, get_user_model
+from django.core.cache import cache
 from django.db import transaction
 from django.http import Http404
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import RetrieveAPIView, CreateAPIView
+from rest_framework.settings import api_settings
 
-from .models import Team, Membership
+from .models import Team, Membership, RateLimitConfig
 from .serializers import (
     RegisterSerializer,
     UserPublicSerializer,
@@ -153,3 +156,52 @@ class TeamTransferView(APIView):
             team.captain = new_captain
             team.save(update_fields=["captain"])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RateLimitsStatusView(APIView):
+    """
+    Non-admin ops view: visualize throttle defaults, DB overrides, effective rates and cache state.
+    Requires staff user (IsAdminUser) but avoids using Django admin.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        defaults: Dict[str, str] = dict(api_settings.DEFAULT_THROTTLE_RATES or {})
+        db_rows = list(
+            RateLimitConfig.objects.all().order_by("scope").values("scope", "user_rate", "ip_rate", "updated_at")
+        )
+        scopes = set()
+        for key in defaults.keys():
+            if key.endswith("-ip"):
+                scopes.add(key[:-3])
+            else:
+                scopes.add(key)
+        for row in db_rows:
+            scopes.add(row["scope"])
+
+        effective = {}
+        cache_state = {}
+        for scope in sorted(scopes):
+            db_row = next((r for r in db_rows if r["scope"] == scope), None)
+            user_rate = (db_row and db_row.get("user_rate")) or defaults.get(scope)
+            ip_rate = (db_row and db_row.get("ip_rate")) or defaults.get(f"{scope}-ip")
+            effective[scope] = {"user_rate": user_rate, "ip_rate": ip_rate}
+
+            # Cache values (present or not)
+            cached_user = cache.get(f"ratelimit:{scope}:user")
+            cached_ip = cache.get(f"ratelimit:{scope}:ip")
+            cache_state[scope] = {
+                "user_cached": cached_user is not None,
+                "user_value": cached_user if cached_user is not None else None,
+                "ip_cached": cached_ip is not None,
+                "ip_value": cached_ip if cached_ip is not None else None,
+            }
+
+        return Response(
+            {
+                "defaults": defaults,
+                "db_overrides": db_rows,
+                "effective": effective,
+                "cache": cache_state,
+            }
+        )
