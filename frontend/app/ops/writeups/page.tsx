@@ -21,11 +21,33 @@ type WriteUp = {
   published_at?: string | null;
 };
 
+type AuditRow = {
+  timestamp: string;
+  actor_username: string;
+  action: string;
+  notes: string;
+  prev_status: string;
+  new_status: string;
+  hash: string;
+  prev_hash: string;
+};
+
 export default function OpsWriteUpsPage() {
   const { notify, notifySuccess, notifyError } = useToast();
   const [rows, setRows] = useState<WriteUp[]>([]);
   const [loading, setLoading] = useState(false);
   const [notesById, setNotesById] = useState<Record<number, string>>({});
+  const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
+  const [challengeId, setChallengeId] = useState<string>("");
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
+  const [count, setCount] = useState<number>(0);
+  const [hasNext, setHasNext] = useState<boolean>(false);
+  const [hasPrev, setHasPrev] = useState<boolean>(false);
+
+  const [auditOpenFor, setAuditOpenFor] = useState<number | null>(null);
+  const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   const getCsrfToken = () => {
     if (typeof document === "undefined") return "";
@@ -33,19 +55,31 @@ export default function OpsWriteUpsPage() {
     return match ? match[1] : "";
   };
 
-  const loadPending = () => {
+  const loadWriteUps = () => {
     setLoading(true);
-    notify("info", "Loading pending write-ups...");
-    fetch("http://localhost:8000/api/content/writeups?status=pending", { credentials: "include" })
+    notify("info", `Loading ${status} write-ups...`);
+    const qs = new URLSearchParams({
+      status,
+      page: String(page),
+      page_size: String(pageSize),
+    });
+    if (challengeId.trim()) qs.set("challenge_id", challengeId.trim());
+    fetch(`http://localhost:8000/api/content/writeups?${qs.toString()}`, { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => setRows(d.results || []))
+      .then((d) => {
+        setRows(d.results || []);
+        setCount(d.count || 0);
+        setHasNext(!!d.has_next);
+        setHasPrev(!!d.has_prev);
+      })
       .catch((e) => notifyError(e?.message || "Failed to load write-ups."))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    loadPending();
-  }, []);
+    loadWriteUps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, challengeId, page, pageSize]);
 
   const moderate = async (id: number, action: "approve" | "reject") => {
     try {
@@ -59,9 +93,26 @@ export default function OpsWriteUpsPage() {
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
       notifySuccess(`Write-up ${action === "approve" ? "approved" : "rejected"}.`);
-      loadPending();
+      loadWriteUps();
     } catch (e: any) {
       notifyError(e?.message || "Moderation failed.");
+    }
+  };
+
+  const openAudit = async (id: number) => {
+    setAuditLoading(true);
+    setAuditOpenFor(id);
+    try {
+      const r = await fetch(`http://localhost:8000/api/content/writeups/${id}/audit`, {
+        credentials: "include",
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setAuditRows(d.results || []);
+    } catch (e: any) {
+      notifyError(e?.message || "Failed to load audit trail.");
+    } finally {
+      setAuditLoading(false);
     }
   };
 
@@ -69,18 +120,85 @@ export default function OpsWriteUpsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Ops: Write-ups Moderation</h1>
-        <button
-          className="px-3 py-2 border rounded hover:bg-gray-50"
-          onClick={loadPending}
-          disabled={loading}
-          title="Reload pending write-ups"
-        >
-          {loading ? "Loading…" : "Refresh"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className="px-3 py-2 border rounded hover:bg-gray-50"
+            onClick={loadWriteUps}
+            disabled={loading}
+            title="Reload write-ups"
+          >
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-end gap-4">
+        <div className="flex flex-col">
+          <label className="text-sm text-gray-700">Status</label>
+          <select
+            className="border rounded px-3 py-2"
+            value={status}
+            onChange={(e) => {
+              setPage(1);
+              setStatus(e.target.value as any);
+            }}
+          >
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+        <div className="flex flex-col">
+          <label className="text-sm text-gray-700">Challenge ID</label>
+          <input
+            className="border rounded px-3 py-2"
+            placeholder="optional"
+            value={challengeId}
+            onChange={(e) => {
+              setPage(1);
+              setChallengeId(e.target.value);
+            }}
+          />
+        </div>
+        <div className="flex flex-col">
+          <label className="text-sm text-gray-700">Page size</label>
+          <select
+            className="border rounded px-3 py-2"
+            value={pageSize}
+            onChange={(e) => {
+              setPage(1);
+              setPageSize(parseInt(e.target.value, 10));
+            }}
+          >
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm text-gray-600">Total: {count}</span>
+          <button
+            className="px-3 py-2 border rounded disabled:opacity-50"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={!hasPrev}
+            title="Previous page"
+          >
+            Prev
+          </button>
+          <span className="text-sm text-gray-700">Page {page}</span>
+          <button
+            className="px-3 py-2 border rounded disabled:opacity-50"
+            onClick={() => setPage((p) => p + 1)}
+            disabled={!hasNext}
+            title="Next page"
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       {rows.length === 0 ? (
-        <div className="text-sm text-gray-600">No pending write-ups.</div>
+        <div className="text-sm text-gray-600">No {status} write-ups.</div>
       ) : (
         <ul className="space-y-4">
           {rows.map((w) => (
@@ -98,36 +216,102 @@ export default function OpsWriteUpsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    className="bg-green-600 text-white px-3 py-2 rounded"
-                    onClick={() => moderate(w.id, "approve")}
-                    title="Approve write-up"
+                    className="px-3 py-2 border rounded"
+                    onClick={() => openAudit(w.id)}
+                    title="View audit trail"
                   >
-                    Approve
+                    View audit
                   </button>
-                  <button
-                    className="bg-red-600 text-white px-3 py-2 rounded"
-                    onClick={() => moderate(w.id, "reject")}
-                    title="Reject write-up"
-                  >
-                    Reject
-                  </button>
+                  {status === "pending" && (
+                    <>
+                      <button
+                        className="bg-green-600 text-white px-3 py-2 rounded"
+                        onClick={() => moderate(w.id, "approve")}
+                        title="Approve write-up"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        className="bg-red-600 text-white px-3 py-2 rounded"
+                        onClick={() => moderate(w.id, "reject")}
+                        title="Reject write-up"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="prose max-w-none mt-3 whitespace-pre-wrap">
                 <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{w.content_md || ""}</ReactMarkdown>
               </div>
-              <div className="mt-3">
-                <label className="text-sm text-gray-700">Moderation notes</label>
-                <textarea
-                  className="border rounded px-3 py-2 w-full h-20 mt-1"
-                  placeholder="Optional notes…"
-                  value={notesById[w.id] || ""}
-                  onChange={(e) => setNotesById((prev) => ({ ...prev, [w.id]: e.target.value }))}
-                />
-              </div>
+              {status !== "pending" && w.moderation_notes ? (
+                <div className="mt-3 text-sm">
+                  <span className="font-medium">Moderation notes:</span> {w.moderation_notes}
+                </div>
+              ) : null}
+              {status === "pending" && (
+                <div className="mt-3">
+                  <label className="text-sm text-gray-700">Moderation notes</label>
+                  <textarea
+                    className="border rounded px-3 py-2 w-full h-20 mt-1"
+                    placeholder="Optional notes…"
+                    value={notesById[w.id] || ""}
+                    onChange={(e) => setNotesById((prev) => ({ ...prev, [w.id]: e.target.value }))}
+                  />
+                </div>
+              )}
             </li>
           ))}
         </ul>
+      )}
+
+      {auditOpenFor !== null && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded shadow p-6 w-full max-w-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-medium">Audit trail for write-up #{auditOpenFor}</h3>
+              <button
+                className="px-3 py-2 border rounded"
+                onClick={() => {
+                  setAuditOpenFor(null);
+                  setAuditRows([]);
+                }}
+                title="Close"
+              >
+                Close
+              </button>
+            </div>
+            {auditLoading ? (
+              <div>Loading…</div>
+            ) : auditRows.length === 0 ? (
+              <div className="text-sm text-gray-600">No audit entries.</div>
+            ) : (
+              <table className="min-w-full border">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="p-2 text-left">Time</th>
+                    <th className="p-2 text-left">Actor</th>
+                    <th className="p-2 text-left">Action</th>
+                    <th className="p-2 text-left">Notes</th>
+                    <th className="p-2 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditRows.map((ar, idx) => (
+                    <tr key={idx} className="border-t">
+                      <td className="p-2">{new Date(ar.timestamp).toLocaleString()}</td>
+                      <td className="p-2">{ar.actor_username || "-"}</td>
+                      <td className="p-2">{ar.action}</td>
+                      <td className="p-2">{ar.notes || "-"}</td>
+                      <td className="p-2">{ar.prev_status} → {ar.new_status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

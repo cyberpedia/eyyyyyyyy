@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 
-from apps.core.models import Team, Membership, ScoreEvent
+from apps.core.models import Team, Membership, ScoreEvent, AuditLog
 from apps.challenges.models import Challenge
 from apps.content.models import WriteUp
 
@@ -18,7 +18,7 @@ class WriteUpModerationTests(TestCase):
             title="Chal", slug="chal", description="desc", flag_hmac="x" * 64, points_max=500
         )
 
-    def test_submit_and_approve_writeup_awards_bonus(self):
+    def test_submit_and_approve_writeup_awards_bonus_and_audit(self):
         # Login as normal user
         self.client.login(username="u1", password="pass123456789")
 
@@ -30,7 +30,7 @@ class WriteUpModerationTests(TestCase):
         self.assertEqual(resp.status_code, 201)
         wid = resp.json()["id"]
 
-        # Approve as staff
+        # Approve as staff with notes
         self.client.logout()
         self.client.login(username="staff", password="pass123456789")
         resp2 = self.client.post(
@@ -46,7 +46,12 @@ class WriteUpModerationTests(TestCase):
         self.assertIsNotNone(bonus)
         self.assertEqual(bonus.challenge_id, self.challenge.id)
 
-    def test_admin_list_pending_requires_staff(self):
+        # Verify audit log note present
+        log = AuditLog.objects.filter(target_type="writeup", target_id=str(wid)).order_by("-timestamp").first()
+        self.assertIsNotNone(log)
+        self.assertEqual((log.data or {}).get("notes"), "good")
+
+    def test_admin_list_pending_requires_staff_and_includes_count(self):
         # Anonymous cannot list
         resp = self.client.get("/api/content/writeups?status=pending")
         self.assertEqual(resp.status_code, 403)
@@ -55,4 +60,6 @@ class WriteUpModerationTests(TestCase):
         self.client.login(username="staff", password="pass123456789")
         resp2 = self.client.get("/api/content/writeups?status=pending")
         self.assertEqual(resp2.status_code, 200)
-        self.assertIn("results", resp2.json())
+        payload = resp2.json()
+        self.assertIn("results", payload)
+        self.assertIn("count", payload)
