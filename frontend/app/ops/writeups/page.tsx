@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useToast } from "../../../components/ToastProvider";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -129,6 +130,16 @@ export default function OpsWriteUpsPage() {
     loadWriteUps();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, challengeId, page, pageSize]);
+
+  // Staff-only guard: redirect non-staff to login
+  const router = useRouter();
+  useEffect(() => {
+    fetch("http://localhost:8000/api/users/me", { credentials: "include" })
+      .then(async (r) => (r.ok ? r.json() : {}))
+      .then((d) => {
+        if (!d.isStaff) router.push("/login");
+      })
+      .]);
 
   const moderate = async (id: number, action: "approve" | "reject") => {
     try {

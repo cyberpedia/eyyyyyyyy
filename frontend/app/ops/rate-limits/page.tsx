@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useToast } from "../../../components/ToastProvider";
+import { useRouter } from "next/navigation";
 
 type RateDefaults = Record<string, string>;
 type DbOverride = { scope: string; user_rate: string; ip_rate: string; updated_at: string };
@@ -29,6 +30,7 @@ export default function OpsRateLimitsPage() {
   const [presetEditor, setPresetEditor] = useState<string>("");
   const [me, setMe] = useState<{ isSuperuser?: boolean; isStaff?: boolean } | null>(null);
   const { notify, notifySuccess, notifyError } = useToast();
+  const router = useRouter();
 
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
@@ -126,7 +128,7 @@ export default function OpsRateLimitsPage() {
   // Helpers to compare rates across units by normalizing to tokens per minute
   const rateToPerMinute = (rate?: string | null): number | undefined => {
     if (!rate) return undefined;
-    const m = rate.match(/^(\d+)\/(sec|second|min|minute|hour|day)$/);
+    const m = rate.match(/^(\\d+)\\/(sec|second|min|minute|hour|day)$/);
     if (!m) return undefined;
     const n = parseInt(m[1], 10);
     const unit = m[2];
@@ -207,14 +209,20 @@ export default function OpsRateLimitsPage() {
       .catch((e) => {
         setError(e.message);
         notifyError(e.message || "Failed to load presets.");
-     _code }new)</;
-;
+      });
 
     fetch("http://localhost:8000/api/users/me", { credentials: "include" })
       .then(async (r) => (r.ok ? r.json() : {}))
       .then((d) => setMe({ isSuperuser: d.isSuperuser, isStaff: d.isStaff }))
       .catch(() => {});
   }, []);
+
+  // Redirect non-staff to login
+  useEffect(() => {
+    if (me && !me.isStaff) {
+      router.push("/login");
+    }
+  }, [me]);
 
   const getCsrfToken = () => {
     if (typeof document === "undefined") return "";

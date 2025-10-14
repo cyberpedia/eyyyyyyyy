@@ -1,12 +1,24 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import UiThemeToggle from "../../../components/UiThemeToggle";
 import HighlightThemeToggle from "../../../components/HighlightThemeToggle";
 import { useToast } from "../../../components/ToastProvider";
 
 export default function OpsSettingsPage() {
   const { notifySuccess } = useToast();
+  const router = useRouter();
+
+  // Staff-only guard: redirect non-staff to login
+  useEffect(() => {
+    fetch("http://localhost:8000/api/users/me", { credentials: "include" })
+      .then(async (r) => (r.ok ? r.json() : {}))
+      .then((d) => {
+        if (!d.isStaff) router.push("/login");
+      })
+      .catch(() => {});
+  }, [router]);
 
   const clearRateLimitsPrefs = () => {
     try {
@@ -33,6 +45,16 @@ export default function OpsSettingsPage() {
     clearWriteUpsPrefs();
   };
 
+  const resetThemePrefs = () => {
+    try {
+      if (typeof window === "undefined") return;
+      window.localStorage.removeItem("uiTheme");
+      window.localStorage.removeItem("hljsTheme");
+      notifySuccess("Reset UI and code theme preferences.");
+      window.location.reload();
+    } catch {}
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Ops Settings</h1>
@@ -42,6 +64,15 @@ export default function OpsSettingsPage() {
         <div className="flex items-center gap-6">
           <UiThemeToggle />
           <HighlightThemeToggle />
+        </div>
+        <div className="mt-2">
+          <button
+            className="px-3 py-2 border rounded hover:bg-gray-50"
+            onClick={resetThemePrefs}
+            title="Reset UI and code highlight themes to defaults"
+          >
+            Reset theme preferences
+          </button>
         </div>
         <p className="text-sm text-gray-600 dark:text-gray-300">
           UI theme toggles overall app colors. Code theme toggles syntax highlighting style for Markdown code blocks.
