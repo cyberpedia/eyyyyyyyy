@@ -119,8 +119,10 @@ describe("Ops Rate Limits apply-only-this-row action", () => {
     const previewBtn = await screen.findByRole("button", { name: /Preview competition/i });
     fireEvent.click(previewBtn);
 
-    // Find row for flag-submit and click Apply only this row
-    const scopeCell = await screen.findByText("flag-submit");
+    // Find preview table and row for flag-submit, then click Apply only this row
+    const previewUserCol = await screen.findByText(/User \(current → new\)/i);
+    const previewTable = previewUserCol.closest("table")!;
+    const scopeCell = within(previewTable).getByText("flag-submit");
     const row = scopeCell.closest("tr")!;
     const applyRowBtn = within(row).getByRole("button", { name: /Apply only this row/i });
     fireEvent.click(applyRowBtn);
@@ -165,8 +167,10 @@ describe("Ops Rate Limits apply-only-this-row action", () => {
     const previewBtn = await screen.findByRole("button", { name: /Preview competition/i });
     fireEvent.click(previewBtn);
 
-    // Apply only this row (only one row exists)
-    const scopeCell = await screen.findByText("flag-submit");
+    // Apply only this row (only one row exists) within the preview table
+    const previewUserCol = await screen.findByText(/User \(current → new\)/i);
+    const previewTable = previewUserCol.closest("table")!;
+    const scopeCell = within(previewTable).getByText("flag-submit");
     const row = scopeCell.closest("tr")!;
     const applyRowBtn = within(row).getByRole("button", { name: /Apply only this row/i });
     fireEvent.click(applyRowBtn);

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useToast } from "../../../components/ToastProvider";
 import { computeDryRunRows } from "../../../components/ratelimits";
 
@@ -130,6 +131,8 @@ export default function OpsRateLimitsPage() {
     reloadAll(true);
   }, []);
 
+  const router = useRouter();
+
   // Load current user role (for superuser-only presets saving)
   useEffect(() => {
     fetch("/api/users/me", { credentials: "include" })
@@ -137,6 +140,8 @@ export default function OpsRateLimitsPage() {
       .then((d) => setMe(d))
       .catch(() => {});
   }, []);
+
+  // Client-side staff-only guard (SSR layout also protects /ops routes);
 
   // Auto-refresh effect (configurable interval)
   useEffect(() => {
