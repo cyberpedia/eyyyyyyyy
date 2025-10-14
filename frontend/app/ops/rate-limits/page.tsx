@@ -30,6 +30,35 @@ export default function OpsRateLimitsPage() {
   const [me, setMe] = useState<{ isSuperuser?: boolean; isStaff?: boolean } | null>(null);
   const { notify, notifySuccess, notifyError } = useToast();
 
+  const [refreshing, setRefreshing] = useState(false);
+  const reloadAll = async () => {
+    try {
+      setRefreshing(true);
+      notify("info", "Refreshing rate limits...");
+      const rlRes = await fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" });
+      const rlData = await rlRes.json().catch(() => ({}));
+      if (!rlRes.ok) {
+        throw new Error(rlData.detail || `Failed to load rate limits (HTTP ${rlRes.status})`);
+      }
+      setData(rlData);
+
+      const presetsRes = await fetch("http://localhost:8000/api/ops/rate-limits/presets", { credentials: "include" });
+      const presetsData = await presetsRes.json().catch(() => ({}));
+      if (presetsRes.ok) {
+        setPresetConfig(presetsData);
+        setPresetEditor(JSON.stringify(presetsData, null, 2));
+      } else {
+        notifyError(presetsData.detail || `Failed to load presets (HTTP ${presetsRes.status})`);
+      }
+
+      notifySuccess("Refreshed rate limits.");
+    } catch (e: any) {
+      notifyError(e?.message || "Refresh failed.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // Helpers to compare rates across units by normalizing to tokens per minute
   const rateToPerMinute = (rate?: string | null): number | undefined => {
     if (!rate) return undefined;
@@ -409,6 +438,14 @@ export default function OpsRateLimitsPage() {
             <span className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">Not staff</span>
           )}
           {me?.isSuperuser && <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">Superuser</span>}
+          <button
+            onClick={reloadAll}
+            className="px-3 py-2 border rounded hover:bg-gray-50"
+            disabled={refreshing}
+            title="Reload rate limits and presets"
+          >
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
           <button onClick={clearCache} className="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">
             Clear all cache
           </button>
