@@ -149,7 +149,7 @@ describe("Ops Rate Limits actions", () => {
     await screen.findByText(/Applied dry-run overrides\./i);
   });
 
-  it("Per-scope Clear cache posts to cache endpoint and shows success", async () => {
+  it("Per-scope Clear cache posts to cache endpoint and shows success (DB overrides row)", async () => {
     const defaults = {
       "flag-submit": "10/min",
       "flag-submit-ip": "30/min",
@@ -191,7 +191,7 @@ describe("Ops Rate Limits actions", () => {
     await screen.findByText(/Cleared cache for flag-submit\./i);
   });
 
-  it("Remove override posts DELETE and shows success", async () => {
+  it("Per-scope Clear cache posts to cache endpoint and shows success (Effective Rates row)", async () => {
     const defaults = {
       "flag-submit": "10/min",
       "flag-submit-ip": "30/min",
@@ -199,9 +199,7 @@ describe("Ops Rate Limits actions", () => {
     const effective = {
       "flag-submit": { user_rate: "10/min", ip_rate: "30/min" },
     };
-    const db_overrides = [
-      { scope: "flag-submit", user_rate: "10/min", ip_rate: "30/min", updated_at: new Date().toISOString() },
-    ];
+    const db_overrides: any[] = []; // ensure only effective table has the scope
     const presets = { presets: {}, env_presets: {} };
 
     const fetchMock = setupFetch({ defaults, effective, db_overrides, presets, superuser: true });
@@ -213,26 +211,78 @@ describe("Ops Rate Limits actions", () => {
     );
     await screen.findByText(/Rate Limits \(Ops\)/);
 
-    // Find DB override row for flag-submit and click Remove
+    // Find Effective Rates row for flag-submit and click Clear cache
+    // This will select the first occurrence which is the Effective table since db_overrides is empty.
     const scopeCell = await screen.findByText("flag-submit");
     const row = scopeCell.closest("tr")!;
-    const removeBtn = within(row).getByRole("button", { name: /Remove/i });
-    fireEvent.click(removeBtn);
+    const clearBtn = within(row).getByRole("button", { name: /Clear cache/i });
+    fireEvent.click(clearBtn);
 
-    // Confirm modal: click Confirm remove
-    const confirmBtn = await screen.findByRole("button", { name: /Confirm remove/i });
+    // Confirm modal: click Confirm clear
+    const confirmBtn = await screen.findByRole("button", { name: /Confirm clear/i });
     fireEvent.click(confirmBtn);
 
-    // Expect DELETE call
-    const calledDelete = fetchMock.mock.calls.some(
-      (c) =>
-        typeof c[0] === "string" &&
-        c[0].startsWith("/api/ops/rate-limits?scope=") &&
-        (c[1]?.method || "GET").toUpperCase() === "DELETE"
+    // Expect POST to cache endpoint
+    const called = fetchMock.mock.calls.some(
+      (c) => c[0] === "/api/ops/rate-limits/cache" && (c[1]?.method || "GET").toUpperCase() === "POST"
     );
-    expect(calledDelete).toBe(true);
+    expect(called).toBe(true);
 
     // Success toast
-    await screen.findByText(/Removed override for flag-submit\./i);
+    await screen.findByText(/Cleared cache for flag-submit\./i);
+  });
+
+  it("Update Override form posts with CSRF header and shows success", async () => {
+    // Set CSRF cookie in jsdom
+    // @ts-ignore
+    document.cookie = "csrftoken=test-token";
+
+    const defaults = {
+      "flag-submit": "10/min",
+      "flag-submit-ip": "30/min",
+    };
+    const effective = {
+      "flag-submit": { user_rate: "10/min", ip_rate: "30/min" },
+    };
+    const db_overrides: any[] = [];
+    const presets = { presets: {}, env_presets: {} };
+
+    const fetchMock = setupFetch({ defaults, effective, db_overrides, presets, superuser: true });
+
+    render(
+      <ToastProvider>
+        <OpsRateLimitsPage />
+      </ToastProvider>
+    );
+    await screen.findByText(/Rate Limits \(Ops\)/);
+
+    // Fill the Update Override form
+    const scopeInput = screen.getByPlaceholderText("scope");
+    const userInput = screen.getByPlaceholderText("user_rate (e.g., 10/min)");
+    const ipInput = screen.getByPlaceholderText("ip_rate (e.g., 30/min)");
+    fireEvent.change(scopeInput, { target: { value: "flag-submit" } });
+    fireEvent.change(userInput, { target: { value: "12/min" } });
+    fireEvent.change(ipInput, { target: { value: "40/min" } });
+
+    const saveBtn = screen.getByRole("button", { name: /Save/i });
+    fireEvent.click(saveBtn);
+
+    // Ensure POST call was made with CSRF header and correct body
+    const postCall = fetchMock.mock.calls.find(
+      (c) => c[0] === "/api/ops/rate-limits" && (c[1]?.method || "GET").toUpperCase() === "POST"
+    );
+    expect(postCall).toBeTruthy();
+    const init = postCall![1] || {};
+    const headers = init.headers || {};
+    expect(headers["X-CSRFToken"]).toBe("test-token");
+    const body = init.body || "";
+    expect(typeof body).toBe("string");
+    const parsed = JSON.parse(body);
+    expect(parsed.scope).toBe("flag-submit");
+    expect(parsed.user_rate).toBe("12/min");
+    expect(parsed.ip_rate).toBe("40/min");
+
+    // Success toast
+    await screen.findByText(/Updated rate limits\./i);
   });
 });
