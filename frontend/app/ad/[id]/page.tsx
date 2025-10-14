@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useToast } from "../../../components/ToastProvider";
+import { computeWsUrl } from "../../../components/ws";
 
 type ServiceRow = {
   team_id: number;
@@ -26,6 +27,7 @@ export default function AttackDefensePage({ params }: { params: { id: string } }
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [logs, setLogs] = useState<AttackLogRow[]>([]);
   const [token, setToken] = useState("");
+  const [wsConnected, setWsConnected] = useState(false);
 
   useEffect(() => {
     fetch(`/api/ad/${id}/services/status`, { credentials: "include" })
@@ -37,6 +39,36 @@ export default function AttackDefensePage({ params }: { params: { id: string } }
       .then((r) => r.json())
       .then((d) => setLogs(d.results || []))
       .catch(() => {});
+  }, [id]);
+
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(computeWsUrl(`/ws/ad/${id}/status`));
+    } catch (_) {
+      ws = null;
+    }
+    if (!ws) return;
+
+    ws.onopen = () => setWsConnected(true);
+    ws.onclose = () => setWsConnected(false);
+    ws.onerror = () => setWsConnected(false);
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data?.type === "status") {
+          setServices(data.payload || []);
+        } else if (data?.type === "attack") {
+          setLogs((prev) => [data.payload, ...prev].slice(0, 100));
+          notify("info", "New attack event.");
+        }
+      } catch {
+        // ignore malformed messages
+      }
+    };
+    return () => {
+      try { ws!.close(); } catch (_) {}
+    };
   }, [id]);
 
   const submitToken = async (e: React.FormEvent) => {
@@ -67,7 +99,17 @@ export default function AttackDefensePage({ params }: { params: { id: string } }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Attack-Defense</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Attack-Defense</h1>
+        <span
+          className={`px-2 py-1 text-xs rounded ${
+            wsConnected ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"
+          }`}
+          title={wsConnected ? "Live updates connected" : "Live updates disconnected"}
+        >
+          {wsConnected ? "Live" : "Offline"}
+        </span>
+      </div>
 
       <section>
         <h2 className="text-lg font-medium mb-2">Submit captured token</h2>

@@ -16,6 +16,9 @@ from .views import (
     RateLimitsCacheView,
     RateLimitPresetsView,
     RateLimitPresetsValidateView,
+    HealthzView,
+    ReadinessView,
+    MetricsView,
 )
 
 urlpatterns = [
@@ -34,4 +37,8 @@ urlpatterns = [
     path("ops/rate-limits/cache", RateLimitsCacheView.as_view()),
     path("ops/rate-limits/presets", RateLimitPresetsView.as_view()),
     path("ops/rate-limits/presets/validate", RateLimitPresetsValidateView.as_view()),
+    # Observability
+    path("healthz", HealthzView.as_view()),
+    path("readiness", ReadinessView.as_view()),
+    path("metrics", MetricsView.as_view()),
 ]

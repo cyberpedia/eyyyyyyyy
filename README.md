@@ -29,6 +29,10 @@ Docs
   - docs/k8s/crds/challenge-instance-crd.yaml
 - Rate-limiting overview:
   - docs/infrastructure/rate-limits.md
+- Observability (metrics, Sentry, alerts):
+  - docs/infrastructure/observability.md
+- SLOs:
+  - docs/infrastructure/slo.md
 - NGINX Ingress rate limits (template):
   - infra/k8s/ingress/nginx-ingress-rate-limits.yaml
 - Envoy local rate-limit (example):
@@ -113,6 +117,9 @@ Frontend (Next.js)
 - Dev proxy: Next.js rewrites /api/* to the Django backend (http://localhost:8000/api). Use relative paths like /api/auth/login so session cookies stay on the frontend origin and are available to server-side guards.
 - Server-side guard: all /ops pages are protected by a server layout that checks /api/users/me before rendering and redirects to /login if not staff.
 - Leaderboard page connects to WebSocket for live updates.
+- AD/KotH pages support live updates via WebSockets:
+  - ws://localhost:8000/ws/ad/<challenge_id>/status
+  - ws://localhost:8000/ws/koth/<challenge_id>/status
 
 Challenge modes (Jeopardy, Attack-Defense, KotH)
 - Jeopardy: existing static/dynamic scoring and flag submissions.
@@ -139,8 +146,21 @@ Notes:
 - To use AD/KotH modes, set challenge.mode accordingly via Admin or API. Checker integration can be configured with challenge.checker_config (JSON).
 - Celery beat/worker should be deployed to run ticks automatically. In dev, use the management command above to simulate ticks.
 
+Observability
+- Health: GET /api/healthz
+- Readiness: GET /api/readiness
+- Metrics: GET /api/metrics (Prometheus; see docs/infrastructure/observability.md)
+- Sentry: set SENTRY_DSN env var to enable error reporting (optional)
+
+Operator (Kubernetes)
+- CRDs: docs/k8s/crds/*
+- Dev operator command: docker compose exec backend python manage.py run_k8s_operator --namespace <ns>
+- See docs/k8s/operator.md for behavior and production notes.
+
 CI
 - GitHub Actions runs checks, migrations, and tests.
 
 Environment variables
 - WRITEUP_BONUS_POINTS: points awarded to a team when a member’s write-up is approved (default 25).
+- SENTRY_DSN: Sentry connection string (optional).
+- SENTRY_TRACES_SAMPLE_RATE: float; performance traces sample rate (default 0.0).

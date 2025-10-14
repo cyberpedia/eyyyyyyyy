@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useToast } from "../../../components/ToastProvider";
+import { computeWsUrl } from "../../../components/ws";
 
 type KothStatus = {
   owner_team_id: number | null;
@@ -19,9 +20,10 @@ type OwnershipRow = {
 
 export default function KothPage({ params }: { params: { id: string } }) {
   const { id } = params;
-  const { notifyError } = useToast();
+  const { notify, notifyError } = useToast();
   const [status, setStatus] = useState<KothStatus | null>(null);
   const [history, setHistory] = useState<OwnershipRow[]>([]);
+  const [wsConnected, setWsConnected] = useState(false);
 
   useEffect(() => {
     fetch(`/api/koth/${id}/status`, { credentials: "include" })
@@ -35,9 +37,56 @@ export default function KothPage({ params }: { params: { id: string } }) {
       .catch(() => {});
   }, [id]);
 
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(computeWsUrl(`/ws/koth/${id}/status`));
+    } catch (_) {
+      ws = null;
+    }
+    if (!ws) return;
+
+    ws.onopen = () => setWsConnected(true);
+    ws.onclose = () => setWsConnected(false);
+    ws.onerror = () => setWsConnected(false);
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data?.type === "koth") {
+          const p = data.payload || {};
+          setStatus({
+            owner_team_id: p.owner_team_id ?? null,
+            owner_team_name: p.owner_team_id ? (history.find(h => h.owner_team_id === p.owner_team_id)?.owner_team_name || status?.owner_team_name || null) : null,
+            from_ts: p.from_ts || status?.from_ts,
+          });
+          setHistory((prev) => [
+            { owner_team_id: p.owner_team_id, owner_team_name: status?.owner_team_name || "", from_ts: p.from_ts, to_ts: p.to_ts || null, points_awarded: 0 },
+            ...prev,
+          ].slice(0, 100));
+          notify("info", "KotH ownership update.");
+        }
+      } catch {
+        // ignore malformed messages
+      }
+    };
+    return () => {
+      try { ws!.close(); } catch (_) {}
+    };
+  }, [id]);
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">King of the Hill</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">King of the Hill</h1>
+        <span
+          className={`px-2 py-1 text-xs rounded ${
+            wsConnected ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"
+          }`}
+          title={wsConnected ? "Live updates connected" : "Live updates disconnected"}
+        >
+          {wsConnected ? "Live" : "Offline"}
+        </span>
+      </div>
 
       <section>
         <h2 className="text-lg font-medium mb-2">Current owner</h2>

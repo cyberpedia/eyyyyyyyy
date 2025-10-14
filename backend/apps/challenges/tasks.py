@@ -17,7 +17,6 @@ from .models import (
     Challenge as ChallengeModel,
     OwnershipEvent,
 )
-from .models import Challenge as ChallengeModel
 
 
 def _http_probe(url: str, timeout: float = 3.0) -> Tuple[bool, Optional[str]]:
@@ -110,11 +109,18 @@ def run_tick(challenge_id: int, tick_index: int):
     if challenge.mode == Challenge.MODE_ATTACK_DEFENSE:
         points_def = int((challenge.checker_config or {}).get("ad_defense_points", 5))
         instances = TeamServiceInstance.objects.filter(challenge_id=challenge_id, status=TeamServiceInstance.STATUS_RUNNING)
+        any_update = False
         for inst in instances:
             ok = _run_checker(inst, challenge.checker_config or {})
             inst.last_check_at = timezone.now()
             inst.save(update_fields=["last_check_at"])
+            any_update = True
             if ok:
+                from apps.core.metrics import ad_defense_uptime_ticks_total
+                try:
+                    ad_defense_uptime_ticks_total.inc()
+                except Exception:
+                    pass
                 ScoreEvent.objects.create(
                     team_id=inst.team_id,
                     user=None,
@@ -124,6 +130,26 @@ def run_tick(challenge_id: int, tick_index: int):
                     metadata={"tick": tick_index},
                 )
                 mint_defense_token(inst.team_id, challenge, inst, tick_index)
+        # Broadcast status update to AD group
+        if any_update:
+            from asgiref.sync import async_to_sync
+            from channels.layers import get_channel_layer
+            payload = [
+                {
+                    "team_id": inst.team_id,
+                    "status": inst.status,
+                    "endpoint_url": inst.endpoint_url,
+                    "last_check_at": inst.last_check_at.isoformat() if inst.last_check_at else None,
+                }
+                for inst in instances
+            ]
+            try:
+                async_to_sync(get_channel_layer().group_send)(
+                    f"ad.status.{challenge_id}",
+                    {"type": "status.update", "payload": payload},
+                )
+            except Exception:
+                pass
 
     elif challenge.mode == Challenge.MODE_KOTH:
         instances = TeamServiceInstance.objects.filter(challenge_id=challenge_id, status=TeamServiceInstance.STATUS_RUNNING)
@@ -131,6 +157,11 @@ def run_tick(challenge_id: int, tick_index: int):
         points_hold = int((challenge.checker_config or {}).get("koth_points_per_tick", 5))
         if owner_team_id:
             # Award hold points
+            from apps.core.metrics import koth_hold_ticks_total
+            try:
+                koth_hold_ticks_total.inc()
+            except Exception:
+                pass
             ScoreEvent.objects.create(
                 team_id=owner_team_id,
                 user=None,

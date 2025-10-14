@@ -149,7 +149,7 @@ export default function OpsRateLimitsPage() {
         if (!d?.isStaff) router.push("/login");
       })
       .catch(() => {});
-  }, [route_coder]new)</;
+  }, [router]);
 
   // Auto-refresh effect (configurable interval)
   useEffect(() => {
@@ -527,8 +527,7 @@ export default function OpsRateLimitsPage() {
         {data.db_overrides.length === 0 ? (
           <div className="text-sm text-gray-600">No overrides.</div>
         ) : (
-          <table className="min-w-full border" data-testid="overrides-tab_codelenew"</>
->
+          <table className="min-w-full border" data-testid="overrides-table">
             <thead>
               <tr className="bg-gray-50">
                 <th className="p-2 text-left">Scope</th>
@@ -602,8 +601,7 @@ export default function OpsRateLimitsPage() {
                 <button className="px-3 py-2 border rounded" onClick={() => { setDryRunRows([]); setDryRunOverrides(null); setDryRunTitle(""); }}>Clear</button>
               </div>
             </div>
-            <table className="min-w-full border mt-2" data-testid="dry-run-tab_codelenew"</>
->
+            <table className="min-w-full border mt-2" data-testid="dry-run-table">
               <thead>
                 <tr className="bg-gray-50">
                   <th className="p-2 text-left">Scope</th>

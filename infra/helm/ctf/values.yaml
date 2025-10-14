@@ -15,6 +15,10 @@ env:
   CELERY_BROKER_URL: "redis://redis:6379/3"
   CELERY_RESULT_BACKEND: "redis://redis:6379/4"
 
+prometheus:
+  enabled: false
+  scrapeInterval: 30s
+
 resources:
   limits:
     cpu: 500m

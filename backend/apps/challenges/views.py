@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.models import Team, Membership, ScoreEvent
+from apps.core.metrics import flag_submissions_total
 from .models import (
     Challenge,
     Submission,
@@ -112,11 +113,10 @@ class FlagSubmitView(APIView):
                     ip=ip,
                     user_agent=user_agent,
                 )
-                return Response(
-                    {
-                        "correct": False,
-                        "points_awarded": 0,
-                        "first_blood": False,
+                # Metrics
+                try:
+                    flag_submissions_total.labels(correct="false").inc()
+                except Exception              "first_blood": False,
                         "challenge_id": challenge.id,
                         "team_total": team.score,
                         "message": "Incorrect flag.",
@@ -167,14 +167,16 @@ class FlagSubmitView(APIView):
 
             team_total = team.score  # dynamic property aggregates ScoreEvents
 
+        # Metrics
+        try:
+            flag_submissions_total.labels(correct="true").inc()
+        except Exception:
+            pass
+
         return Response(
             {
                 "correct": True,
-                "points_awarded": points_awarded + fb_bonus,
-                "first_blood": first_blood,
-                "challenge_id": challenge.id,
-                "team_total": team_total,
-                "message": "Correct!",
+                "points_awarded": points_awarded + fb_bonus           "message": "Correct!",
             }
         )
 
@@ -295,6 +297,12 @@ class ADSubmitView(APIView):
             delta=points,
             metadata={"victim_team_id": dt.team_id, "tick": dt.tick},
         )
+        # Metrics
+        from apps.core.metrics import ad_attack_success_total
+        try:
+            ad_attack_success_total.inc()
+        except Exception:
+            pass
         return Response({"ok": True, "points_awarded": points})
 
 

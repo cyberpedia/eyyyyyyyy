@@ -16,6 +16,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import RetrieveAPIView, CreateAPIView
 from rest_framework.settings import api_settings
+from django.http import HttpResponse
+
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from .models import Team, Membership, RateLimitConfig
 from .serializers import (
@@ -454,3 +457,29 @@ class RateLimitPresetsValidateView(APIView):
                         errors.append(f"env '{env}': scope '{scope}' invalid ip_rate '{ir}'")
 
         return Response({"valid": len(errors) == 0, "errors": errors})
+
+
+# Observability endpoints
+
+class HealthzView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        return Response({"status": "ok"})
+
+
+class ReadinessView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        # Basic readiness: DB, cache checks could be added here; minimal ok for now
+        return Response({"status": "ready"})
+
+
+class MetricsView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        # Expose Prometheus metrics
+        data = generate_latest()
+        return HttpResponse(data, content_type=CONTENT_TYPE_LATEST)
