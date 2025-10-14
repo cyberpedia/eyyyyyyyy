@@ -25,8 +25,12 @@ Docs
 - Kubernetes CRDs (draft):
   - docs/k8s/crds/challenge-template-crd.yaml
   - docs/k8s/crds/challenge-instance-crd.yaml
+- Rate-limiting overview:
+  - docs/infrastructure/rate-limits.md
 - NGINX Ingress rate limits (template):
   - infra/k8s/ingress/nginx-ingress-rate-limits.yaml
+- Envoy local rate-limit (example):
+  - infra/envoy/local-rate-limit.yaml
 
 Backend (Django)
 - Location: backend/
@@ -42,7 +46,7 @@ Backend (Django)
   - Submissions use HMAC flags with constant-time compare.
   - First blood awards +10% of max points.
   - Leaderboard is derived from ScoreEvents.
-  - App-level rate limiting enabled:
+  - App-level rate limiting enabled (DB-overridable via Admin > Rate limit configs):
     - Flag submission: 10/min per user + 30/min per IP (429 on exceed)
     - Login: 5/min per IP
 

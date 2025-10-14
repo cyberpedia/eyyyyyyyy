@@ -87,3 +87,21 @@ class AuditLog(models.Model):
 
     def __str__(self) -> str:
         return f"{self.timestamp} {self.action} {self.target_type}:{self.target_id}"
+
+
+class RateLimitConfig(models.Model):
+    """
+    Optional DB-backed throttling configuration.
+    If a row exists for a given scope, the throttle rates override REST_FRAMEWORK.DEFAULT_THROTTLE_RATES.
+    - scope: the DRF throttle scope value (e.g., 'flag-submit', 'login')
+    - user_rate: e.g., '10/min' (empty string disables the user-scope throttle override)
+    - ip_rate: e.g., '30/min' (empty string disables the ip-scope throttle override)
+    """
+
+    scope = models.CharField(max_length=64, unique=True)
+    user_rate = models.CharField(max_length=32, blank=True, default="")
+    ip_rate = models.CharField(max_length=32, blank=True, default="")
+    updated_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self) -> str:
+        return f"{self.scope}: user={self.user_rate or '-'} ip={self.ip_rate or '-'}"

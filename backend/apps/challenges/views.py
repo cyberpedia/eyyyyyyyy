@@ -11,10 +11,8 @@ from rest_framework import permissions, status
 from rest_framework.generics import ListAPIView, RetrieveAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.throttling import ScopedRateThrottle
 
 from apps.core.models import Team, Membership, ScoreEvent
-from apps.core.throttles import PerIPRateThrottle
 from .models import Challenge, Submission, verify_flag, Category, Tag
 from .serializers import (
     ChallengeListItemSerializer,
@@ -54,7 +52,6 @@ class ChallengeDetailView(RetrieveAPIView):
 
 class FlagSubmitView(APIView):
     throttle_scope = "flag-submit"
-    throttle_classes = [ScopedRateThrottle, PerIPRateThrottle]
 
     def post(self, request, id: int):
         try:

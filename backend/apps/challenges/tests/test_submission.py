@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.core.models import Team, Membership, ScoreEvent
+from apps.core.models import Team, Membership, ScoreEvent, RateLimitConfig
 from apps.challenges.models import Category, Challenge, hmac_flag
 
 User = get_user_model()
@@ -59,6 +60,33 @@ class SubmissionFlowTests(TestCase):
             self.assertEqual(r.status_code, 200)
         r = self.client.post(f"/api/challenges/{self.challenge.id}/submit", {"flag": "CTF{nope}"}, format="json")
         self.assertEqual(r.status_code, 429)
+
+    def test_anonymous_flag_submit_throttle(self):
+        # New client without login => anonymous; should throttle by IP at 10/min default (Scoped throttle uses IP for anon)
+        anon = APIClient()
+        for i in range(10):
+            r = anon.post(f"/api/challenges/{self.challenge.id}/submit", {"flag": "CTF{nope}"}, format="json")
+            # Will get 400 due to no team, but still counts towards throttle
+            self.assertIn(r.status_code, (200, 400))
+        r = anon.post(f"/api/challenges/{self.challenge.id}/submit", {"flag": "CTF{nope}"}, format="json")
+        self.assertEqual(r.status_code, 429)
+
+    def test_db_override_user_and_ip_rates(self):
+        # Override rates to be stricter to assert DB-driven throttles work
+        RateLimitConfig.objects.update_or_create(scope="flag-submit", defaults={"user_rate": "2/min", "ip_rate": "2/min"})
+        cache.clear()
+        # Logged-in client hits user-based limit at 3rd try
+        r1 = self.client.post(f"/api/challenges/{self.challenge.id}/submit", {"flag": "CTF{nope}"}, format="json")
+        r2 = self.client.post(f"/api/challenges/{self.challenge.id}/submit", {"flag": "CTF{nope}"}, format="json")
+        r3 = self.client.post(f"/api/challenges/{self.challenge.id}/submit", {"flag": "CTF{nope}"}, format="json")
+        self.assertEqual(r3.status_code, 429)
+        # Anonymous client hits IP-based limit at 3rd try
+        anon = APIClient()
+        cache.clear()
+        a1 = anon.post(f"/api/challenges/{self.challenge.id}/submit", {"flag": "CTF{nope}"}, format="json")
+        a2 = anon.post(f"/api/challenges/{self.challenge.id}/submit", {"flag": "CTF{nope}"}, format="json")
+        a3 = anon.post(f"/api/challenges/{self.challenge.id}/submit", {"flag": "CTF{nope}"}, format="json")
+        self.assertEqual(a3.status_code, 429)
 
 
 class LoginThrottleTests(TestCase):

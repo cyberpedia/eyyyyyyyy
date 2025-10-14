@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Team, Membership, ScoreEvent, AuditLog
+from .models import Team, Membership, ScoreEvent, AuditLog, RateLimitConfig
 
 
 @admin.register(Team)
@@ -25,3 +25,9 @@ class ScoreEventAdmin(admin.ModelAdmin):
 class AuditLogAdmin(admin.ModelAdmin):
     list_display = ("timestamp", "actor_user", "action", "target_type", "target_id")
     search_fields = ("action", "target_type", "target_id")
+
+
+@admin.register(RateLimitConfig)
+class RateLimitConfigAdmin(admin.ModelAdmin):
+    list_display = ("scope", "user_rate", "ip_rate", "updated_at")
+    search_fields = ("scope",)
