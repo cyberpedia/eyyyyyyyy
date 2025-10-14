@@ -54,7 +54,7 @@ describe("Ops Rate Limits tables", () => {
     vi.restoreAllMocks();
   });
 
-  it("shows flag-submit in both Effective Rates and DB Overrides sections", async () => {
+  it("shows flag-submit in both Effective Rates and DB Overrides tables with clear-cache actions", async () => {
     setupFetch();
 
     render(
@@ -65,27 +65,19 @@ describe("Ops Rate Limits tables", () => {
 
     await screen.findByText(/Rate Limits \(Ops\)/);
 
-    const occurrences = await screen.findAllByText("flag-submit");
-    // Expect two occurrences: one in each table
-    expect(occurrences.length).toBeGreaterThanOrEqual(2);
+    const effectiveTable = screen.getByTestId("effective-table");
+    const overridesTable = screen.getByTestId("overrides-table");
 
-    // Identify which section each belongs to
-    const sections = occurrences.map((el) => {
-      const row = el.closest("tr")!;
-      const section = row.closest("section")!;
-      const heading = section.querySelector("h2")!;
-      return heading.textContent || "";
-    });
+    const effScopeCell = within(effectiveTable).getByText("flag-submit");
+    const effRow = effScopeCell.closest("tr")!;
+    expect(effRow).toBeTruthy();
+    const effClearBtn = within(effRow).getByRole("button", { name: /Clear cache/i });
+    expect(effClearBtn).toBeTruthy();
 
-    // Should contain both section headings
-    expect(sections).toContain("Effective Rates");
-    expect(sections).toContain("DB Overrides");
-
-    // For completeness, verify each row has a Clear cache button
-    for (const el of occurrences) {
-      const row = el.closest("tr")!;
-      const clearBtn = within(row).getByRole("button", { name: /Clear cache/i });
-      expect(clearBtn).toBeTruthy();
-    }
+    const ovScopeCell = within(overridesTable).getByText("flag-submit");
+    const ovRow = ovScopeCell.closest("tr")!;
+    expect(ovRow).toBeTruthy();
+    const ovClearBtn = within(ovRow).getByRole("button", { name: /Clear cache/i });
+    expect(ovClearBtn).toBeTruthy();
   });
 });

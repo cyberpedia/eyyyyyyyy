@@ -172,7 +172,8 @@ describe("Ops Rate Limits actions", () => {
     await screen.findByText(/Rate Limits \(Ops\)/);
 
     // Find DB override row for flag-submit and click Clear cache
-    const scopeCell = await screen.findByText("flag-submit");
+    const overridesTable = screen.getByTestId("overrides-table");
+    const scopeCell = within(overridesTable).getByText("flag-submit");
     const row = scopeCell.closest("tr")!;
     const clearBtn = within(row).getByRole("button", { name: /Clear cache/i });
     fireEvent.click(clearBtn);
@@ -211,9 +212,9 @@ describe("Ops Rate Limits actions", () => {
     );
     await screen.findByText(/Rate Limits \(Ops\)/);
 
-    // Find Effective Rates row for flag-submit and click Clear cache
-    // This will select the first occurrence which is the Effective table since db_overrides is empty.
-    const scopeCell = await screen.findByText("flag-submit");
+    // Find Effective Rates row for flag-submit and click Clear cache (effective table is the only table with this scope)
+    const effectiveTable = screen.getByTestId("effective-table");
+    const scopeCell = within(effectiveTable).getByText("flag-submit");
     const row = scopeCell.closest("tr")!;
     const clearBtn = within(row).getByRole("button", { name: /Clear cache/i });
     fireEvent.click(clearBtn);

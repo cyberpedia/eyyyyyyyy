@@ -120,8 +120,7 @@ describe("Ops Rate Limits apply-only-this-row action", () => {
     fireEvent.click(previewBtn);
 
     // Find preview table and row for flag-submit, then click Apply only this row
-    const previewUserCol = await screen.findByText(/User \(current → new\)/i);
-    const previewTable = previewUserCol.closest("table")!;
+    const previewTable = screen.getByTestId("dry-run-table");
     const scopeCell = within(previewTable).getByText("flag-submit");
     const row = scopeCell.closest("tr")!;
     const applyRowBtn = within(row).getByRole("button", { name: /Apply only this row/i });
@@ -168,8 +167,7 @@ describe("Ops Rate Limits apply-only-this-row action", () => {
     fireEvent.click(previewBtn);
 
     // Apply only this row (only one row exists) within the preview table
-    const previewUserCol = await screen.findByText(/User \(current → new\)/i);
-    const previewTable = previewUserCol.closest("table")!;
+    const previewTable = screen.getByTestId("dry-run-table");
     const scopeCell = within(previewTable).getByText("flag-submit");
     const row = scopeCell.closest("tr")!;
     const applyRowBtn = within(row).getByRole("button", { name: /Apply only this row/i });

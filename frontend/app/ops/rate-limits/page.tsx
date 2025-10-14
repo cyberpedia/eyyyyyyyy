@@ -141,7 +141,15 @@ export default function OpsRateLimitsPage() {
       .catch(() => {});
   }, []);
 
-  // Client-side staff-only guard (SSR layout also protects /ops routes);
+  // Client-side staff-only guard (SSR layout also protects /ops routes)
+  useEffect(() => {
+    fetch("/api/users/me", { credentials: "include" })
+      .then(async (r) => (r.ok ? r.json() : {}))
+      .then((d) => {
+        if (!d?.isStaff) router.push("/login");
+      })
+      .catch(() => {});
+  }, [route_coder]new)</;
 
   // Auto-refresh effect (configurable interval)
   useEffect(() => {
@@ -483,7 +491,7 @@ export default function OpsRateLimitsPage() {
 
       <section>
         <h2 className="text-lg font-medium mb-2">Effective Rates</h2>
-        <table className="min-w-full border">
+        <table className="min-w-full border" data-testid="effective-table">
           <thead>
             <tr className="bg-gray-50">
               <th className="p-2 text-left">Scope</th>
@@ -519,7 +527,8 @@ export default function OpsRateLimitsPage() {
         {data.db_overrides.length === 0 ? (
           <div className="text-sm text-gray-600">No overrides.</div>
         ) : (
-          <table className="min-w-full border">
+          <table className="min-w-full border" data-testid="overrides-tab_codelenew"</>
+>
             <thead>
               <tr className="bg-gray-50">
                 <th className="p-2 text-left">Scope</th>
@@ -593,7 +602,8 @@ export default function OpsRateLimitsPage() {
                 <button className="px-3 py-2 border rounded" onClick={() => { setDryRunRows([]); setDryRunOverrides(null); setDryRunTitle(""); }}>Clear</button>
               </div>
             </div>
-            <table className="min-w-full border mt-2">
+            <table className="min-w-full border mt-2" data-testid="dry-run-tab_codelenew"</>
+>
               <thead>
                 <tr className="bg-gray-50">
                   <th className="p-2 text-left">Scope</th>
