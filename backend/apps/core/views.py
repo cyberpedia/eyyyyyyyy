@@ -10,7 +10,7 @@ from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import RetrieveAPIView, CreateAPIView
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.throttling import ScopedRateThrottle
 
 from .models import Team, Membership
 from .serializers import (
@@ -20,6 +20,7 @@ from .serializers import (
     TeamPublicSerializer,
     TeamCreateSerializer,
 )
+from .throttles import PerIPRateThrottle
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -39,6 +40,8 @@ class RegisterView(APIView):
 
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "login"
+    throttle_classes = [ScopedRateThrottle, PerIPRateThrottle]
 
     def post(self, request):
         username = request.data.get("username")

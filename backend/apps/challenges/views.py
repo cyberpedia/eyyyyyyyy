@@ -11,8 +11,10 @@ from rest_framework import permissions, status
 from rest_framework.generics import ListAPIView, RetrieveAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import ScopedRateThrottle
 
 from apps.core.models import Team, Membership, ScoreEvent
+from apps.core.throttles import PerIPRateThrottle
 from .models import Challenge, Submission, verify_flag, Category, Tag
 from .serializers import (
     ChallengeListItemSerializer,
@@ -51,6 +53,9 @@ class ChallengeDetailView(RetrieveAPIView):
 
 
 class FlagSubmitView(APIView):
+    throttle_scope = "flag-submit"
+    throttle_classes = [ScopedRateThrottle, PerIPRateThrottle]
+
     def post(self, request, id: int):
         try:
             challenge = Challenge.objects.get(id=id)
@@ -65,7 +70,6 @@ class FlagSubmitView(APIView):
         if not team:
             return Response({"detail": "Join or create a team first."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Basic rate limiting can be done via nginx/app; omitted here.
         user_agent = request.META.get("HTTP_USER_AGENT", "")[:400]
         ip = request.META.get("REMOTE_ADDR")
 

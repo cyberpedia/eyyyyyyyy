@@ -95,22 +95,42 @@ DATABASES = {
     }
 }
 
-# Cache (Redis)
-_redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/1")
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": _redis_url,
+# Cache
+_redis_url_env = os.getenv("REDIS_URL")
+if _redis_url_env:
+    _redis_url = _redis_url_env
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": _redis_url,
+        }
     }
-}
+else:
+    # Use in-memory cache when REDIS_URL is not explicitly set (e.g., tests/CI)
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "unique-ctf-cache",
+        }
+    }
+    _redis_url = "redis://localhost:6379/1"
 
 # Channels
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {"hosts": [os.getenv("CHANNEL_REDIS_URL", _redis_url)]},
+_channel_redis_url = os.getenv("CHANNEL_REDIS_URL")
+if _channel_redis_url:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [_channel_redis_url]},
+        }
     }
-}
+else:
+    # In-memory channel layer for dev/tests without Redis
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 # Celery
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", _redis_url)
@@ -164,6 +184,18 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticatedOrReadOnly"],
     "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.ScopedRateThrottle",
+        "apps.core.throttles.PerIPRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        # Flag submissions
+        "flag-submit": "10/min",      # per-user (or per-IP if anonymous)
+        "flag-submit-ip": "30/min",   # additional per-IP bucket
+        # Login
+        "login": "5/min",             # per-IP (anonymous)
+        "login-ip": "5/min",          # explicit per-IP bucket
+    },
 }
 
 SIMPLE_JWT = {

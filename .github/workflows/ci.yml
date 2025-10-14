@@ -24,17 +24,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
-      - name: Django checks
+      - name: Django checks and tests
         working-directory: backend
         env:
           DJANGO_DEBUG: "1"
         run: |
           python manage.py check
-          python - <<'PY'
-          import os
-          os.environ.setdefault("DJANGO_SETTINGS_MODULE","ctfplatform.settings")
-          import django
-          django.setup()
-          from django.apps import apps
-          print("Installed apps:", len(apps.get_app_configs()))
-          PY
+          python manage.py migrate --noinput
+          python manage.py test -v 2

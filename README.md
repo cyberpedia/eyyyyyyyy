@@ -10,6 +10,9 @@ Quickstart (dev)
 - Start frontend:
   - cd frontend && npm install && npm run dev
   - Frontend: http://localhost:3000
+- Seed demo data (categories + sample challenge):
+  - docker compose exec backend python manage.py migrate
+  - docker compose exec backend python manage.py seed_demo
 
 Docs
 - System Design v1.1: docs/system-design.md
@@ -34,6 +37,9 @@ Backend (Django)
   - Submissions use HMAC flags with constant-time compare.
   - First blood awards +10% of max points.
   - Leaderboard is derived from ScoreEvents.
+  - App-level rate limiting enabled:
+    - Flag submission: 10/min per user + 30/min per IP (429 on exceed)
+    - Login: 5/min per IP
 
 Frontend (Next.js)
 - Location: frontend/
@@ -41,4 +47,4 @@ Frontend (Next.js)
 - Talks to backend at http://localhost:8000/api
 
 CI
-- GitHub Actions runs basic Django checks.
+- GitHub Actions runs checks, migrations, and tests.
