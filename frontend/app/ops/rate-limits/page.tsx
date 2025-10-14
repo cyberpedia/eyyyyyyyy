@@ -26,6 +26,7 @@ export default function OpsRateLimitsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [presetConfig, setPresetConfig] = useState<any | null>(null);
   const [presetEditor, setPresetEditor] = useState<string>("");
+  const [me, setMe] = useState<{ isSuperuser?: boolean; isStaff?: boolean } | null>(null);
 
   useEffect(() => {
     fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" })
@@ -52,6 +53,11 @@ export default function OpsRateLimitsPage() {
         setPresetEditor(JSON.stringify(d, null, 2));
       })
       .catch((e) => setError(e.message));
+
+    fetch("http://localhost:8000/api/users/me", { credentials: "include" })
+      .then(async (r) => (r.ok ? r.json() : {}))
+      .then((d) => setMe({ isSuperuser: d.isSuperuser, isStaff: d.isStaff }))
+      .catch(() => {});
   }, []);
 
   const getCsrfToken = () => {
@@ -305,9 +311,86 @@ export default function OpsRateLimitsPage() {
           value={presetEditor}
           onChange={(e) => setPresetEditor(e.target.value)}
         />
-        <div className="mt-2">
+        <div className="mt-2 space-x-2">
           <button
-            className="bg-indigo-600 text-white px-3 py-2 rounded"
+            className="px-3 py-2 border rounded"
+            onClick={() => {
+              setMsg(null);
+              setError(null);
+              try {
+                const parsed = JSON.parse(presetEditor);
+                const errors: string[] = [];
+                const checkMap = (m: any) => {
+                  if (typeof m !== "object" || m === null) return ["not an object"];
+                  const errs: string[] = [];
+                  for (const [scope, rates] of Object.entries(m)) {
+                    if (typeof rates !== "object" || rates === null) {
+                      errs.push(`scope ${scope}: value must be object`);
+                      continue;
+                    }
+                    const ur = (rates as any).user_rate ?? "";
+                    const ir = (rates as any).ip_rate ?? "";
+                    if (typeof ur !== "string" || typeof ir !== "string") {
+                      errs.push(`scope ${scope}: user_rate/ip_rate must be strings`);
+                      continue;
+                    }
+                    const re = /^\\d+\\/(sec|second|min|minute|hour|day)$/;
+                    if (ur !== "" && !re.test(ur)) errs.push(`scope ${scope}: invalid user_rate '${ur}'`);
+                    if (ir !== "" && !re.test(ir)) errs.push(`scope ${scope}: invalid ip_rate '${ir}'`);
+                  }
+                  return errs;
+                };
+                if (!parsed.presets || typeof parsed.presets !== "object") {
+                  errors.push("presets must be an object");
+                } else {
+                  for (const [name, m] of Object.entries(parsed.presets)) {
+                    errors.push(...checkMap(m));
+                  }
+                }
+                if (!parsed.env_presets || typeof parsed.env_presets !== "object") {
+                  errors.push("env_presets must be an object");
+                } else {
+                  for (const [name, m] of Object.entries(parsed.env_presets)) {
+                    errors.push(...checkMap(m));
+                  }
+                }
+                if (errors.length === 0) {
+                  setMsg("Valid presets JSON.");
+                } else {
+                  setError(`Invalid presets: ${errors.join("; ")}`);
+                }
+              } catch (e: any) {
+                setError("Invalid JSON.");
+              }
+            }}
+          >
+            Validate
+          </button>
+          <button
+            className="px-3 py-2 border rounded"
+            onClick={() => {
+              const scopes = Object.keys(data?.effective || {});
+              const skeleton = {
+                presets: {
+                  custom: Object.fromEntries(
+                    scopes.map((s) => [s, { user_rate: "", ip_rate: "" }])
+                  ),
+                },
+                env_presets: {
+                  dev: Object.fromEntries(scopes.map((s) => [s, { user_rate: "", ip_rate: "" }])),
+                  staging: Object.fromEntries(scopes.map((s) => [s, { user_rate: "", ip_rate: "" }])),
+                  prod: Object.fromEntries(scopes.map((s) => [s, { user_rate: "", ip_rate: "" }])),
+                },
+              };
+              setPresetEditor(JSON.stringify(skeleton, null, 2));
+              setMsg("Generated example skeleton.");
+            }}
+          >
+            Generate example
+          </button>
+          <button
+            className={`px-3 py-2 rounded ${me?.isSuperuser ? "bg-indigo-600 text-white" : "bg-gray-300 text-gray-700 cursor-not-allowed"}`}
+            disabled={!me?.isSuperuser}
             onClick={async () => {
               setMsg(null);
               setError(null);
@@ -334,6 +417,9 @@ export default function OpsRateLimitsPage() {
           >
             Save presets
           </button>
+          {!me?.isSuperuser && (
+            <span className="text-xs text-gray-600">Only superusers can save presets.</span>
+          )}
         </div>
       </section>
 

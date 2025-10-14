@@ -368,7 +368,11 @@ class RateLimitPresetsView(APIView):
         """
         Overwrite presets file. Body should be JSON with keys:
         { "presets": { ... }, "env_presets": { ... } }
+        Requires superuser privileges.
         """
+        if not request.user.is_superuser:
+            return Response({"detail": "superuser required"}, status=status.HTTP_403_FORBIDDEN)
+
         try:
             cfg = dict(request.data)
         except Exception:

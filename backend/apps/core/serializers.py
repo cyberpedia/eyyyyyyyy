@@ -11,11 +11,13 @@ User = get_user_model()
 class UserPublicSerializer(serializers.ModelSerializer):
     teamId = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
+    isStaff = serializers.BooleanField(source="is_staff", read_only=True)
+    isSuperuser = serializers.BooleanField(source="is_superuser", read_only=True)
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "teamId", "score"]
-        read_only_fields = ["id", "teamId", "score"]
+        fields = ["id", "username", "email", "teamId", "score", "isStaff", "isSuperuser"]
+        read_only_fields = ["id", "teamId", "score", "isStaff", "isSuperuser"]
 
     def get_teamId(self, obj):
         membership = obj.memberships.select_related("team").first()

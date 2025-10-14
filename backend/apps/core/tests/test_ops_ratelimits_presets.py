@@ -31,7 +31,8 @@ class OpsRateLimitPresetsTests(TestCase):
         self.assertIn("presets", r.data)
         self.assertIn("env_presets", r.data)
 
-    def test_update_presets_valid(self):
+    def test_update_presets_valid_requires_superuser(self):
+        # Staff should not be able to update
         cfg = {
             "presets": {
                 "competition": {
@@ -47,8 +48,13 @@ class OpsRateLimitPresetsTests(TestCase):
             },
         }
         r = self.client.post("/api/ops/rate-limits/presets", cfg, format="json")
-        self.assertEqual(r.status_code, 200)
-        # File should exist
+        self.assertEqual(r.status_code, 403)
+
+        # Elevate to superuser and try again
+        self.user.is_superuser = True
+        self.user.save()
+        r2 = self.client.post("/api/ops/rate-limits/presets", cfg, format="json")
+        self.assertEqual(r2.status_code, 200)
         path = Path(settings.RATE_LIMIT_PRESETS_PATH)
         self.assertTrue(path.exists())
         with path.open("r") as f:
@@ -56,6 +62,8 @@ class OpsRateLimitPresetsTests(TestCase):
         self.assertEqual(saved["presets"]["competition"]["flag-submit"]["user_rate"], "9/min")
 
     def test_update_presets_invalid_rate(self):
+        self.user.is_superuser = True
+        self.user.save()
         bad = {"presets": {"p": {"flag-submit": {"user_rate": "bad", "ip_rate": "1/min"}}}, "env_presets": {}}
         r = self.client.post("/api/ops/rate-limits/presets", bad, format="json")
         self.assertEqual(r.status_code, 400)

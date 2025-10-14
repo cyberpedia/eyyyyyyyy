@@ -61,9 +61,9 @@ Ops (Rate limits viewer)
   - Staging: flag-submit 30/min user + 60/min IP; login 15/min IP
   - Prod: flag-submit 10/min user + 30/min IP; login 5/min IP
 - Presets config (editable by ops/admin without code changes):
-  - UI editor on the Ops page
+  - UI editor on the Ops page (superusers can save; staff can view/apply)
   - File: backend/config/rate_limit_presets.json
-  - API: GET/POST http://localhost:8000/api/ops/rate-limits/presets
+  - API: GET/POST http://localhost:8000/api/ops/rate-limits/presets (POST requires superuser)
 - Backend API:
   - GET http://localhost:8000/api/ops/rate-limits → view defaults, DB overrides, effective values, cache state
   - POST http://localhost:8000/api/ops/rate-limits → upsert override {scope, user_rate, ip_rate}; blank values clear override. CSRF required.
