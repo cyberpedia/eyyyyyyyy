@@ -32,6 +32,8 @@ export default function OpsRateLimitsPage() {
 
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
+  const [lastRefreshedTs, setLastRefreshedTs] = useState<number | null>(null);
+  const [nextRefreshSecondsLeft, setNextRefreshSecondsLeft] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(60000);
 
@@ -79,6 +81,7 @@ export default function OpsRateLimitsPage() {
       }
       setData(rlData);
       setLastRefreshedAt(new Date().toLocaleString());
+      setLastRefreshedTs(Date.now());
 
       const presetsRes = await fetch("http://localhost:8000/api/ops/rate-limits/presets", { credentials: "include" });
       const presetsData = await presetsRes.json().catch(() => ({}));
@@ -97,12 +100,28 @@ export default function OpsRateLimitsPage() {
     }
   };
 
-  // Auto-refresh effect (configurable interval)
+// Auto-refresh effect (configurable interval)
   useEffect(() => {
     if (!autoRefresh) return;
     const iv = setInterval(() => reloadAll(true), autoRefreshInterval);
     return () => clearInterval(iv);
   }, [autoRefresh, autoRefreshInterval]);
+
+  // Countdown to next refresh (updates every second)
+  useEffect(() => {
+    if (!autoRefresh || lastRefreshedTs == null) {
+      setNextRefreshSecondsLeft(null);
+      return;
+    }
+    const endTs = lastRefreshedTs + autoRefreshInterval;
+    const tick = () => {
+      const rem = Math.max(0, Math.ceil((endTs - Date.now()) / 1000));
+      setNextRefreshSecondsLeft(rem);
+    };
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => clearInterval(iv);
+  }, [autoRefresh, autoRefreshInterval, lastRefreshedTs]);
 
   // Helpers to compare rates across units by normalizing to tokens per minute
   const rateToPerMinute = (rate?: string | null): number | undefined => {
@@ -166,6 +185,7 @@ export default function OpsRateLimitsPage() {
       .then((d) => {
         setData(d);
         setLastRefreshedAt(new Date().toLocaleString());
+        setLastRefreshedTs(Date.now());
       })
       .catch((e) => {
         setError(e.message);
@@ -481,6 +501,9 @@ export default function OpsRateLimitsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Rate Limits (Ops)</h1>
           <div className="text-xs text-gray-600">Last refreshed: {lastRefreshedAt || "—"}</div>
+          {autoRefresh && (
+            <div className="text-xs text-gray-600">Next refresh in: {nextRefreshSecondsLeft ?? "—"}s</div>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sm">
@@ -505,6 +528,9 @@ export default function OpsRateLimitsPage() {
               <option value={120000}>120s</option>
             </select>
           </div>
+          {autoRefresh && (
+            <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded" title="Auto-refresh enabled">Auto-refresh on</span>
+          )}
           {me?.isStaff ? (
             <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">Staff</span>
           ) : (
