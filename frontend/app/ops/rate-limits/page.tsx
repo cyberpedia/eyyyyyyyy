@@ -33,6 +33,7 @@ export default function OpsRateLimitsPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(60000);
 
   const reloadAll = async (silent = false) => {
     try {
@@ -63,12 +64,12 @@ export default function OpsRateLimitsPage() {
     }
   };
 
-  // Auto-refresh effect (60s interval)
+  // Auto-refresh effect (configurable interval)
   useEffect(() => {
     if (!autoRefresh) return;
-    const iv = setInterval(() => reloadAll(true), 60000);
+    const iv = setInterval(() => reloadAll(true), autoRefreshInterval);
     return () => clearInterval(iv);
-  }, [autoRefresh]);
+  }, [autoRefresh, autoRefreshInterval]);
 
   // Helpers to compare rates across units by normalizing to tokens per minute
   const rateToPerMinute = (rate?: string | null): number | undefined => {
@@ -449,14 +450,28 @@ export default function OpsRateLimitsPage() {
           <div className="text-xs text-gray-600">Last refreshed: {lastRefreshedAt || "—"}</div>
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-            />
-            Auto-refresh 60s
-          </label>
+          <div className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+                title="Enable periodic refresh"
+              />
+              Auto-refresh
+            </label>
+            <select
+              className="border rounded px-2 py-1"
+              value={autoRefreshInterval}
+              disabled={!autoRefresh || refreshing}
+              onChange={(e) => setAutoRefreshInterval(parseInt(e.target.value, 10))}
+              title="Auto-refresh interval"
+            >
+              <option value={30000}>30s</option>
+              <option value={60000}>60s</option>
+              <option value={120000}>120s</option>
+            </select>
+          </div>
           {me?.isStaff ? (
             <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">Staff</span>
           ) : (
