@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 
 type RateDefaults = Record<string, string>;
 type DbOverride = { scope: string; user_rate: string; ip_rate: string; updated_at: string };
@@ -71,6 +71,25 @@ export default function OpsRateLimitsPage() {
   const [confirmScope, setConfirmScope] = useState<string | null>(null);
   const [applyLoading, setApplyLoading] = useState(false);
 
+  // Additional confirmations
+  const [confirmClearAllCache, setConfirmClearAllCache] = useState(false);
+  const [confirmClearScope, setConfirmClearScope] = useState<string | null>(null);
+  const [confirmRemoveScope, setConfirmRemoveScope] = useState<string | null>(null);
+
+  // Toast system
+  type Toast = { id: number; type: "success" | "error"; message: string };
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastIdRef = useRef(0);
+  const notify = (type: "success" | "error", message: string) => {
+    const id = ++toastIdRef.current;
+    setToasts((ts) => [...ts, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((ts) => ts.filter((t) => t.id !== id));
+    }, 4000);
+  };
+  const notifySuccess = (message: string) => notify("success", message);
+  const notifyError = (message: string) => notify("error", message);
+
   useEffect(() => {
     fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" })
       .then(async (r) => {
@@ -129,12 +148,18 @@ export default function OpsRateLimitsPage() {
       }
       setData(d);
       setMsg("Updated rate limits.");
+      notifySuccess("Updated rate limits.");
     } catch (e: any) {
       setError(e.message || "Update failed.");
+      notifyError(e.message || "Update failed.");
     }
   };
 
-  const clearCache = async () => {
+  const clearCache = () => {
+    setConfirmClearAllCache(true);
+  };
+
+  const doClearCacheAll = async () => {
     setMsg(null);
     setError(null);
     try {
@@ -151,12 +176,18 @@ export default function OpsRateLimitsPage() {
       if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
       setData(d);
       setMsg("Cleared cache.");
+      notifySuccess("Cleared all rate-limit cache.");
     } catch (e: any) {
       setError(e.message || "Clear cache failed.");
+      notifyError(e.message || "Clear cache failed.");
     }
   };
 
-  const clearCacheScope = async (s: string) => {
+  const clearCacheScope = (s: string) => {
+    setConfirmClearScope(s);
+  };
+
+  const doClearCacheScope = async (s: string) => {
     setMsg(null);
     setError(null);
     try {
@@ -173,8 +204,10 @@ export default function OpsRateLimitsPage() {
       if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
       setData(d);
       setMsg(`Cleared cache for ${s}.`);
+      notifySuccess(`Cleared cache for ${s}.`);
     } catch (e: any) {
       setError(e.message || "Clear cache failed.");
+      notifyError(e.message || "Clear cache failed.");
     }
   };
 
@@ -184,7 +217,11 @@ export default function OpsRateLimitsPage() {
     setIpRate(ir || "");
   };
 
-  const removeOverride = async (s: string) => {
+  const removeOverride = (s: string) => {
+    setConfirmRemoveScope(s);
+  };
+
+  const doRemoveOverride = async (s: string) => {
     setMsg(null);
     setError(null);
     try {
@@ -199,8 +236,10 @@ export default function OpsRateLimitsPage() {
       if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
       setData(d);
       setMsg(`Removed override for ${s}.`);
+      notifySuccess(`Removed override for ${s}.`);
     } catch (e: any) {
       setError(e.message || "Remove override failed.");
+      notifyError(e.message || "Remove override failed.");
     }
   };
 
@@ -234,8 +273,10 @@ export default function OpsRateLimitsPage() {
       if (!rr.ok) throw new Error(dd.detail || `HTTP ${rr.status}`);
       setData(dd);
       setMsg(`Applied ${preset} preset.`);
+      notifySuccess(`Applied ${preset} preset.`);
     } catch (e: any) {
       setError(e.message || "Apply preset failed.");
+      notifyError(e.message || "Apply preset failed.");
     }
   };
 
@@ -269,8 +310,10 @@ export default function OpsRateLimitsPage() {
       if (!rr.ok) throw new Error(dd.detail || `HTTP ${rr.status}`);
       setData(dd);
       setMsg(`Applied ${env} environment preset.`);
+      notifySuccess(`Applied ${env} environment preset.`);
     } catch (e: any) {
       setError(e.message || "Apply environment preset failed.");
+      notifyError(e.message || "Apply environment preset failed.");
     }
   };
 
@@ -374,6 +417,119 @@ export default function OpsRateLimitsPage() {
           </button>
         </div>
       </div>
+
+      {/* Toasts */}
+      <div className="fixed bottom-4 right-4 z-50 space-y-2">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={`px-4 py-2 rounded shadow text-white ${
+              t.type === "success" ? "bg-green-600" : "bg-red-600"
+            }`}
+          >
+            {t.message}
+          </div>
+        ))}
+      </div>
+
+      {/* Confirm modals for cache clear and override removal */}
+      {confirmClearAllCache && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded shadow p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-2">Clear all rate-limit cache?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This will remove all cached rate-limit values and force re-read from DB/defaults.
+            </p>
+            <div className="flex justify-end space-x-2">
+              <button
+                className="px-3 py-2 border rounded"
+                disabled={applyLoading}
+                onClick={() => setConfirmClearAllCache(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className={`px-3 py-2 rounded ${applyLoading ? "bg-blue-300" : "bg-blue-600"} text-white`}
+                disabled={applyLoading}
+                onClick={async () => {
+                  setApplyLoading(true);
+                  await doClearCacheAll();
+                  setConfirmClearAllCache(false);
+                  setApplyLoading(false);
+                }}
+              >
+                Confirm clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmClearScope && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded shadow p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-2">Clear cache for “{confirmClearScope}”?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This will remove cached values for this scope.
+            </p>
+            <div className="flex justify-end space-x-2">
+              <button
+                className="px-3 py-2 border rounded"
+                disabled={applyLoading}
+                onClick={() => setConfirmClearScope(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className={`px-3 py-2 rounded ${applyLoading ? "bg-blue-300" : "bg-blue-600"} text-white`}
+                disabled={applyLoading}
+                onClick={async () => {
+                  if (!confirmClearScope) return;
+                  setApplyLoading(true);
+                  await doClearCacheScope(confirmClearScope);
+                  setConfirmClearScope(null);
+                  setApplyLoading(false);
+                }}
+              >
+                Confirm clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmRemoveScope && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded shadow p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-2">Remove override for “{confirmRemoveScope}”?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This will delete the DB override row for this scope.
+            </p>
+            <div className="flex justify-end space-x-2">
+              <button
+                className="px-3 py-2 border rounded"
+                disabled={applyLoading}
+                onClick={() => setConfirmRemoveScope(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className={`px-3 py-2 rounded ${applyLoading ? "bg-red-300" : "bg-red-600"} text-white`}
+                disabled={applyLoading}
+                onClick={async () => {
+                  if (!confirmRemoveScope) return;
+                  setApplyLoading(true);
+                  await doRemoveOverride(confirmRemoveScope);
+                  setConfirmRemoveScope(null);
+                  setApplyLoading(false);
+                }}
+              >
+                Confirm remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section>
         <h2 className="text-lg font-medium mb-2">Presets</h2>
