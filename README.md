@@ -55,8 +55,9 @@ Backend (Django)
 Content and Moderation
 - Write-ups:
   - Submit write-ups on challenge pages; they enter a moderation queue.
-  - Rendered as Markdown on the challenge page (sanitized).
+  - Rendered as Markdown with syntax highlighting on the challenge page (sanitized).
   - Ops UI (staff): http://localhost:3000/ops/writeups for moderation (approve/reject with notes).
+  - Audit trail: view per write-up and export to CSV from the Ops UI (includes notes and status changes).
   - API:
     - GET http://localhost:8000/api/content/challenges/<challenge_id>/writeups?status=approved
     - POST http://localhost:8000/api/content/challenges/<challenge_id>/writeups (auth required; CSRF)

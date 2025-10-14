@@ -3,7 +3,20 @@
 import React, { useEffect, useState } from "react";
 import { useToast } from "../../../components/ToastProvider";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
 import rehypeSanitize from "rehype-sanitize";
+import { defaultSchema } from "hast-util-sanitize";
+
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    code: [...(defaultSchema.attributes.code || []), ["className"]],
+    span: [...(defaultSchema.attributes.span || []), ["className"]],
+    pre: [...(defaultSchema.attributes.pre || []), ["className"]],
+  },
+};
 
 type WriteUp = {
   id: number;
@@ -114,6 +127,38 @@ export default function OpsWriteUpsPage() {
     } finally {
       setAuditLoading(false);
     }
+  };
+
+  const exportAuditCsv = () => {
+    if (auditOpenFor === null || auditRows.length === 0) return;
+    const headers = ["timestamp", "actor_username", "action", "notes", "prev_status", "new_status", "hash", "prev_hash"];
+    const rowsCsv = auditRows.map((r) =>
+      [
+        new Date(r.timestamp).toISOString(),
+        r.actor_username || "",
+        r.action || "",
+        (r.notes || "").replace(/"/g, '""'),
+        r.prev_status || "",
+        r.new_status || "",
+        r.hash || "",
+        r.prev_hash || "",
+      ]
+        .map((v) => `"${v}"`)
+        .join(",")
+    );
+    const csv = [headers.join(","), ...rowsCsv].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `writeup-${auditOpenFor}-audit.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }, 0);
+    notifySuccess("Exported audit CSV.");
   };
 
   return (
@@ -243,7 +288,12 @@ export default function OpsWriteUpsPage() {
                 </div>
               </div>
               <div className="prose max-w-none mt-3 whitespace-pre-wrap">
-                <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{w.content_md || ""}</ReactMarkdown>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight, [rehypeSanitize, sanitizeSchema]]}
+                >
+                  {w.content_md || ""}
+                </ReactMarkdown>
               </div>
               {status !== "pending" && w.moderation_notes ? (
                 <div className="mt-3 text-sm">
@@ -271,16 +321,25 @@ export default function OpsWriteUpsPage() {
           <div className="bg-white rounded shadow p-6 w-full max-w-2xl">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-medium">Audit trail for write-up #{auditOpenFor}</h3>
-              <button
-                className="px-3 py-2 border rounded"
-                onClick={() => {
-                  setAuditOpenFor(null);
-                  setAuditRows([]);
-                }}
-                title="Close"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="px-3 py-2 border rounded"
+                  onClick={exportAuditCsv}
+                  title="Export audit to CSV"
+                >
+                  Export CSV
+                </button>
+                <button
+                  className="px-3 py-2 border rounded"
+                  onClick={() => {
+                    setAuditOpenFor(null);
+                    setAuditRows([]);
+                  }}
+                  title="Close"
+                >
+                  Close
+                </button>
+              </div>
             </div>
             {auditLoading ? (
               <div>Loading…</div>

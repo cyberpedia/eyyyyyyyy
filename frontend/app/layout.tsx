@@ -1,4 +1,5 @@
 import "./globals.css";
+import "highlight.js/styles/github.css";
 import React from "react";
 import { ToastProvider } from "../components/ToastProvider";
 

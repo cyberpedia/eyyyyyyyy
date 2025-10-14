@@ -3,7 +3,20 @@
 import React, { useEffect, useState } from "react";
 import { useToast } from "../../../components/ToastProvider";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
 import rehypeSanitize from "rehype-sanitize";
+import { defaultSchema } from "hast-util-sanitize";
+
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    code: [...(defaultSchema.attributes.code || []), ["className"]],
+    span: [...(defaultSchema.attributes.span || []), ["className"]],
+    pre: [...(defaultSchema.attributes.pre || []), ["className"]],
+  },
+};
 
 type ChallengeDetail = {
   id: number;
@@ -108,7 +121,12 @@ export default function ChallengeDetailPage({ params }: { params: { id: string }
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">{challenge.title}</h1>
       <div className="prose max-w-none">
-        <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{challenge.description || ""}</ReactMarkdown>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeHighlight, [rehypeSanitize, sanitizeSchema]]}
+        >
+          {challenge.description || ""}
+        </ReactMarkdown>
       </div>
 
       <form onSubmit={submitFlag} className="space-y-2">
@@ -134,7 +152,12 @@ export default function ChallengeDetailPage({ params }: { params: { id: string }
                   by {w.username} {w.published_at ? `on ${w.published_at}` : ""}
                 </div>
                 <div className="prose max-w-none mt-2 whitespace-pre-wrap">
-                  <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{w.content_md || ""}</ReactMarkdown>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeHighlight, [rehypeSanitize, sanitizeSchema]]}
+                  >
+                    {w.content_md || ""}
+                  </ReactMarkdown>
                 </div>
               </li>
             ))}
