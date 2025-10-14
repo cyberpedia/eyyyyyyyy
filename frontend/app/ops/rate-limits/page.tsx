@@ -28,6 +28,29 @@ export default function OpsRateLimitsPage() {
   const [presetEditor, setPresetEditor] = useState<string>("");
   const [me, setMe] = useState<{ isSuperuser?: boolean; isStaff?: boolean } | null>(null);
 
+  // Helpers to compare rates across units by normalizing to tokens per minute
+  const rateToPerMinute = (rate?: string | null): number | undefined => {
+    if (!rate) return undefined;
+    const m = rate.match(/^(\d+)\/(sec|second|min|minute|hour|day)$/);
+    if (!m) return undefined;
+    const n = parseInt(m[1], 10);
+    const unit = m[2];
+    switch (unit) {
+      case "sec":
+      case "second":
+        return n * 60; // tokens per second -> per minute
+      case "min":
+      case "minute":
+        return n;
+      case "hour":
+        return n / 60;
+      case "day":
+        return n / (60 * 24);
+      default:
+        return undefined;
+    }
+  };
+
   type DryRow = {
     scope: string;
     current_user_rate?: string;
@@ -36,8 +59,13 @@ export default function OpsRateLimitsPage() {
     new_ip_rate?: string;
     changed_user: boolean;
     changed_ip: boolean;
+    user_direction: "up" | "down" | "same";
+    ip_direction: "up" | "down" | "same";
+    user_fallback: boolean;
+    ip_fallback: boolean;
   };
   const [dryRunRows, setDryRunRows] = useState<DryRow[]>([]);
+  const [dryRunOverrides, setDryRunOverrides] = useState<Record<string, { user_rate: string; ip_rate: string }> | null>(null);
   const [dryRunTitle, setDryRunTitle] = useState<string>("");
 
   useEffect(() => {
@@ -251,19 +279,51 @@ export default function OpsRateLimitsPage() {
     for (const [scope, rates] of Object.entries(overrides)) {
       const current_user = (effective[scope]?.user_rate as string | undefined) ?? (defaults[scope] as string | undefined);
       const current_ip = (effective[scope]?.ip_rate as string | undefined) ?? (defaults[`${scope}-ip`] as string | undefined);
-      const new_user = (rates.user_rate || rates.user_rate === "") ? (rates.user_rate === "" ? (defaults[scope] as string | undefined) : rates.user_rate) : current_user;
-      const new_ip = (rates.ip_rate || rates.ip_rate === "") ? (rates.ip_rate === "" ? (defaults[`${scope}-ip`] as string | undefined) : rates.ip_rate) : current_ip;
+      const override_user_blank = (rates.user_rate ?? "") === "";
+      const override_ip_blank = (rates.ip_rate ?? "") === "";
+      const new_user = override_user_blank ? (defaults[scope] as string | undefined) : (rates.user_rate as string);
+      const new_ip = override_ip_blank ? (defaults[`${scope}-ip`] as string | undefined) : (rates.ip_rate as string);
+
+      const cur_user_pm = rateToPerMinute(current_user);
+      const new_user_pm = rateToPerMinute(new_user);
+      const cur_ip_pm = rateToPerMinute(current_ip);
+      const new_ip_pm = rateToPerMinute(new_ip);
+
+      const user_changed = (new_user ?? "") !== (current_user ?? "");
+      const ip_changed = (new_ip ?? "") !== (current_ip ?? "");
+      const user_dir: "up" | "down" | "same" =
+        !user_changed || cur_user_pm === undefined || new_user_pm === undefined
+          ? "same"
+          : new_user_pm > cur_user_pm
+          ? "up"
+          : new_user_pm < cur_user_pm
+          ? "down"
+          : "same";
+      const ip_dir: "up" | "down" | "same" =
+        !ip_changed || cur_ip_pm === undefined || new_ip_pm === undefined
+          ? "same"
+          : new_ip_pm > cur_ip_pm
+          ? "up"
+          : new_ip_pm < cur_ip_pm
+          ? "down"
+          : "same";
+
       rows.push({
         scope,
         current_user_rate: current_user,
         current_ip_rate: current_ip,
         new_user_rate: new_user,
         new_ip_rate: new_ip,
-        changed_user: (new_user ?? "") !== (current_user ?? ""),
-        changed_ip: (new_ip ?? "") !== (current_ip ?? ""),
+        changed_user: user_changed,
+        changed_ip: ip_changed,
+        user_direction: user_dir,
+        ip_direction: ip_dir,
+        user_fallback: override_user_blank,
+        ip_fallback: override_ip_blank,
       });
     }
     setDryRunRows(rows);
+    setDryRunOverrides(overrides);
   };
 
   const dryRunPreset = (preset: "competition" | "practice" | "heavy") => {
@@ -603,15 +663,55 @@ export default function OpsRateLimitsPage() {
         <section>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-lg font-medium">{dryRunTitle}</h2>
-            <button
-              className="px-3 py-2 border rounded"
-              onClick={() => {
-                setDryRunRows([]);
-                setDryRunTitle("");
-              }}
-            >
-              Clear
-            </button>
+            <div className="space-x-2">
+              <button
+                className="px-3 py-2 border rounded"
+                onClick={() => {
+                  setDryRunRows([]);
+                  setDryRunOverrides(null);
+                  setDryRunTitle("");
+                }}
+              >
+                Clear
+              </button>
+              <button
+                className="px-3 py-2 rounded bg-blue-600 text-white"
+                onClick={async () => {
+                  if (!dryRunOverrides) return;
+                  setMsg(null);
+                  setError(null);
+                  try {
+                    for (const [s, rates] of Object.entries(dryRunOverrides)) {
+                      const r = await fetch("http://localhost:8000/api/ops/rate-limits", {
+                        method: "POST",
+                        credentials: "include",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "X-CSRFToken": getCsrfToken(),
+                        },
+                        body: JSON.stringify({ scope: s, user_rate: (rates as any).user_rate, ip_rate: (rates as any).ip_rate }),
+                      });
+                      if (!r.ok) {
+                        const d = await r.json().catch(() => ({}));
+                        throw new Error(d.detail || `Apply from preview failed for scope ${s} (HTTP ${r.status})`);
+                      }
+                    }
+                    const rr = await fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" });
+                    const dd = await rr.json().catch(() => ({}));
+                    if (!rr.ok) throw new Error(dd.detail || `HTTP ${rr.status}`);
+                    setData(dd);
+                    setMsg("Applied overrides from preview.");
+                    setDryRunRows([]);
+                    setDryRunOverrides(null);
+                    setDryRunTitle("");
+                  } catch (e: any) {
+                    setError(e.message || "Apply from preview failed.");
+                  }
+                }}
+              >
+                Apply these changes
+              </button>
+            </div>
           </div>
           <table className="min-w-full border">
             <thead>
@@ -630,13 +730,31 @@ export default function OpsRateLimitsPage() {
                   <td className={`p-2 ${row.changed_user ? "text-gray-700" : "text-gray-500"}`}>
                     {row.current_user_rate ?? "-"}
                   </td>
-                  <td className={`p-2 ${row.changed_user ? "text-blue-700 font-medium" : "text-gray-500"}`}>
+                  <td
+                    className={`p-2 ${
+                      row.user_direction === "up"
+                        ? "text-green-700 font-medium"
+                        : row.user_direction === "down"
+                        ? "text-red-700 font-medium"
+                        : "text-gray-500"
+                    }`}
+                    title={row.user_fallback ? "Override blank; falling back to default" : undefined}
+                  >
                     {row.new_user_rate ?? "-"}
                   </td>
                   <td className={`p-2 ${row.changed_ip ? "text-gray-700" : "text-gray-500"}`}>
                     {row.current_ip_rate ?? "-"}
                   </td>
-                  <td className={`p-2 ${row.changed_ip ? "text-blue-700 font-medium" : "text-gray-500"}`}>
+                  <td
+                    className={`p-2 ${
+                      row.ip_direction === "up"
+                        ? "text-green-700 font-medium"
+                        : row.ip_direction === "down"
+                        ? "text-red-700 font-medium"
+                        : "text-gray-500"
+                    }`}
+                    title={row.ip_fallback ? "Override blank; falling back to default" : undefined}
+                  >
                     {row.new_ip_rate ?? "-"}
                   </td>
                 </tr>
@@ -646,6 +764,14 @@ export default function OpsRateLimitsPage() {
           <p className="text-xs text-gray-600 mt-2">
             Preview shows what effective rates would be if the preset were applied. No changes are made.
           </p>
+          <div className="text-xs text-gray-600">
+            <span className="mr-4">
+              <span className="text-green-700 font-medium">Green</span> = increase (more requests allowed)
+            </span>
+            <span>
+              <span className="text-red-700 font-medium">Red</span> = decrease (fewer requests allowed)
+            </span>
+          </div>
         </section>
       )}
 
