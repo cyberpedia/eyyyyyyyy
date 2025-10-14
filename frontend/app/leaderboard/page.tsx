@@ -20,7 +20,7 @@ export default function LeaderboardPage() {
   const loadLeaderboard = () => {
     setLoading(true);
     notify("info", "Loading leaderboard...");
-    fetch("http://localhost:8000/api/leaderboard", { credentials: "include" })
+    fetch("/api/leaderboard", { credentials: "include" })
       .then((r) => r.json())
       .then((d) => {
         setRows(d.results || []);
@@ -40,7 +40,12 @@ export default function LeaderboardPage() {
   useEffect(() => {
     let ws: WebSocket | null = null;
     try {
-      ws = new WebSocket("ws://localhost:8000/ws/leaderboard");
+      const proto = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
+      const host =
+        typeof window !== "undefined" && window.location.hostname === "localhost" && window.location.port === "3000"
+          ? "localhost:8000"
+          : (typeof window !== "undefined" ? window.location.host : "localhost:8000");
+      ws = new WebSocket(`${proto}://${host}/ws/leaderboard`);
     } catch (_) {
       ws = null;
     }

@@ -24,7 +24,7 @@ export default function ChallengesPage() {
   const loadChallenges = () => {
     setLoading(true);
     notify("info", "Loading challenges...");
-    fetch("http://localhost:8000/api/challenges?released=1", { credentials: "include" })
+    fetch("/api/challenges?released=1", { credentials: "include" })
       .then((r) => r.json())
       .then((d) => {
         if (Array.isArray(d.results)) setData(d.results);

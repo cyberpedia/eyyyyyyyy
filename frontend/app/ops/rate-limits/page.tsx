@@ -2,15 +2,11 @@
 
 import React, { useEffect, useState } from "react";
 import { useToast } from "../../../components/ToastProvider";
-import { useRouter } from "next/navigation";
 
 type RateDefaults = Record<string, string>;
 type DbOverride = { scope: string; user_rate: string; ip_rate: string; updated_at: string };
-type Effective = Record<string, { user_rate: string | undefined; ip_rate: string | undefined }>;
-type CacheState = Record<
-  string,
-  { user_cached: boolean; user_value: string | null; ip_cached: boolean; ip_value: string | null }
->;
+type Effective = Record<string, { user_rate?: string; ip_rate?: string }>;
+type CacheState = Record<string, { user_cached: boolean; user_value: string | null; ip_cached: boolean; ip_value: string | null }>;
 
 type ApiResponse = {
   defaults: RateDefaults;
@@ -19,25 +15,47 @@ type ApiResponse = {
   cache: CacheState;
 };
 
+type DryRow = {
+  scope: string;
+  current_user_rate?: string;
+  current_ip_rate?: string;
+  new_user_rate?: string;
+  new_ip_rate?: string;
+  changed_user: boolean;
+  changed_ip: boolean;
+  user_direction: "up" | "down" | "same";
+  ip_direction: "up" | "down" | "same";
+  user_fallback: boolean;
+  ip_fallback: boolean;
+};
+
 export default function OpsRateLimitsPage() {
+  const { notify, notifySuccess, notifyError } = useToast();
+
   const [data, setData] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const [scope, setScope] = useState("");
   const [userRate, setUserRate] = useState("");
   const [ipRate, setIpRate] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
-  const [presetConfig, setPresetConfig] = useState<any | null>(null);
-  const [presetEditor, setPresetEditor] = useState<string>("");
-  const [me, setMe] = useState<{ isSuperuser?: boolean; isStaff?: boolean } | null>(null);
-  const { notify, notifySuccess, notifyError } = useToast();
-  const router = useRouter();
 
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(60000);
+  const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [lastRefreshedTs, setLastRefreshedTs] = useState<number | null>(null);
   const [nextRefreshSecondsLeft, setNextRefreshSecondsLeft] = useState<number | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(60000);
+
+  const [confirmClearAllCache, setConfirmClearAllCache] = useState(false);
+  const [confirmClearScope, setConfirmClearScope] = useState<string | null>(null);
+  const [confirmRemoveScope, setConfirmRemoveScope] = useState<string | null>(null);
+  const [applyLoading, setApplyLoading] = useState(false);
+
+  const [presetConfig, setPresetConfig] = useState<any | null>(null);
+  const [presetEditor, setPresetEditor] = useState<string>("");
+  const [dryRunRows, setDryRunRows] = useState<DryRow[]>([]);
+  const [dryRunOverrides, setDryRunOverrides] = useState<Record<string, { user_rate: string; ip_rate: string }> | null>(null);
+  const [dryRunTitle, setDryRunTitle] = useState<string>("");
 
   // Persisted preferences keys
   const AUTO_REFRESH_KEY = "opsRateLimits:autoRefresh";
@@ -56,9 +74,7 @@ export default function OpsRateLimitsPage() {
           setAutoRefreshInterval(ms);
         }
       }
-    } catch (_) {
-      // ignore storage errors
-    }
+    } catch (_) {}
   }, []);
 
   // Persist changes
@@ -67,16 +83,20 @@ export default function OpsRateLimitsPage() {
       if (typeof window === "undefined") return;
       window.localStorage.setItem(AUTO_REFRESH_KEY, autoRefresh ? "1" : "0");
       window.localStorage.setItem(AUTO_REFRESH_INTERVAL_KEY, String(autoRefreshInterval));
-    } catch (_) {
-      // ignore storage errors
-    }
+    } catch (_) {}
   }, [autoRefresh, autoRefreshInterval]);
+
+  const getCsrfToken = () => {
+    if (typeof document === "undefined") return "";
+    const match = document.cookie.match(/csrftoken=([^;]+)/);
+    return match ? match[1] : "";
+  };
 
   const reloadAll = async (silent = false) => {
     try {
       setRefreshing(true);
       if (!silent) notify("info", "Refreshing rate limits...");
-      const rlRes = await fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" });
+      const rlRes = await fetch("/api/ops/rate-limits", { credentials: "include" });
       const rlData = await rlRes.json().catch(() => ({}));
       if (!rlRes.ok) {
         throw new Error(rlData.detail || `Failed to load rate limits (HTTP ${rlRes.status})`);
@@ -85,7 +105,7 @@ export default function OpsRateLimitsPage() {
       setLastRefreshedAt(new Date().toLocaleString());
       setLastRefreshedTs(Date.now());
 
-      const presetsRes = await fetch("http://localhost:8000/api/ops/rate-limits/presets", { credentials: "include" });
+      const presetsRes = await fetch("/api/ops/rate-limits/presets", { credentials: "include" });
       const presetsData = await presetsRes.json().catch(() => ({}));
       if (presetsRes.ok) {
         setPresetConfig(presetsData);
@@ -102,7 +122,12 @@ export default function OpsRateLimitsPage() {
     }
   };
 
-// Auto-refresh effect (configurable interval)
+  // Initial load
+  useEffect(() => {
+    reloadAll(true);
+  }, []);
+
+  // Auto-refresh effect (configurable interval)
   useEffect(() => {
     if (!autoRefresh) return;
     const iv = setInterval(() => reloadAll(true), autoRefreshInterval);
@@ -128,14 +153,14 @@ export default function OpsRateLimitsPage() {
   // Helpers to compare rates across units by normalizing to tokens per minute
   const rateToPerMinute = (rate?: string | null): number | undefined => {
     if (!rate) return undefined;
-    const m = rate.match(/^(\\d+)\\/(sec|second|min|minute|hour|day)$/);
+    const m = rate.match(/^(\d+)\/(sec|second|min|minute|hour|day)$/);
     if (!m) return undefined;
     const n = parseInt(m[1], 10);
     const unit = m[2];
     switch (unit) {
       case "sec":
       case "second":
-        return n * 60; // tokens per second -> per minute
+        return n * 60;
       case "min":
       case "minute":
         return n;
@@ -148,289 +173,18 @@ export default function OpsRateLimitsPage() {
     }
   };
 
-  type DryRow = {
-    scope: string;
-    current_user_rate?: string;
-    current_ip_rate?: string;
-    new_user_rate?: string;
-    new_ip_rate?: string;
-    changed_user: boolean;
-    changed_ip: boolean;
-    user_direction: "up" | "down" | "same";
-    ip_direction: "up" | "down" | "same";
-    user_fallback: boolean;
-    ip_fallback: boolean;
-  };
-  const [dryRunRows, setDryRunRows] = useState<DryRow[]>([]);
-  const [dryRunOverrides, setDryRunOverrides] = useState<Record<string, { user_rate: string; ip_rate: string }> | null>(null);
-  const [dryRunTitle, setDryRunTitle] = useState<string>("");
-  const [confirmAllOpen, setConfirmAllOpen] = useState(false);
-  const [confirmScope, setConfirmScope] = useState<string | null>(null);
-  const [applyLoading, setApplyLoading] = useState(false);
-
-  // Additional confirmations
-  const [confirmClearAllCache, setConfirmClearAllCache] = useState(false);
-  const [confirmClearScope, setConfirmClearScope] = useState<string | null>(null);
-  const [confirmRemoveScope, setConfirmRemoveScope] = useState<string | null>(null);
-
-  
-
-  useEffect(() => {
-    fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" })
-      .then(async (r) => {
-        if (!r.ok) {
-          const d = await r.json().catch(() => ({}));
-          throw new Error(d.detail || `HTTP ${r.status}`);
-        }
-        return r.json();
-      })
-      .then((d) => {
-        setData(d);
-        setLastRefreshedAt(new Date().toLocaleString());
-        setLastRefreshedTs(Date.now());
-      })
-      .catch((e) => {
-        setError(e.message);
-        notifyError(e.message || "Failed to load rate limits.");
-      });
-
-    fetch("http://localhost:8000/api/ops/rate-limits/presets", { credentials: "include" })
-      .then(async (r) => {
-        if (!r.ok) {
-          const d = await r.json().catch(() => ({}));
-          throw new Error(d.detail || `HTTP ${r.status}`);
-        }
-        return r.json();
-      })
-      .then((d) => {
-        setPresetConfig(d);
-        setPresetEditor(JSON.stringify(d, null, 2));
-      })
-      .catch((e) => {
-        setError(e.message);
-        notifyError(e.message || "Failed to load presets.");
-      });
-
-    fetch("http://localhost:8000/api/users/me", { credentials: "include" })
-      .then(async (r) => (r.ok ? r.json() : {}))
-      .then((d) => setMe({ isSuperuser: d.isSuperuser, isStaff: d.isStaff }))
-      .catch(() => {});
-  }, []);
-
-  // Redirect non-staff to login
-  useEffect(() => {
-    if (me && !me.isStaff) {
-      router.push("/login");
-    }
-  }, [me]);
-
-  const getCsrfToken = () => {
-    if (typeof document === "undefined") return "";
-    const match = document.cookie.match(/csrftoken=([^;]+)/);
-    return match ? match[1] : "";
-  };
-
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMsg(null);
-    setError(null);
-    try {
-      const r = await fetch("http://localhost:8000/api/ops/rate-limits", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": getCsrfToken(),
-        },
-        body: JSON.stringify({ scope, user_rate: userRate, ip_rate: ipRate }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        throw new Error(d.detail || `HTTP ${r.status}`);
-      }
-      setData(d);
-      setMsg("Updated rate limits.");
-      notifySuccess("Updated rate limits.");
-    } catch (e: any) {
-      setError(e.message || "Update failed.");
-      notifyError(e.message || "Update failed.");
-    }
-  };
-
-  const clearCache = () => {
-    setConfirmClearAllCache(true);
-  };
-
-  const doClearCacheAll = async () => {
-    setMsg(null);
-    setError(null);
-    try {
-      const r = await fetch("http://localhost:8000/api/ops/rate-limits/cache", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": getCsrfToken(),
-        },
-        body: JSON.stringify({}),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
-      setData(d);
-      setMsg("Cleared cache.");
-      notifySuccess("Cleared all rate-limit cache.");
-    } catch (e: any) {
-      setError(e.message || "Clear cache failed.");
-      notifyError(e.message || "Clear cache failed.");
-    }
-  };
-
-  const clearCacheScope = (s: string) => {
-    setConfirmClearScope(s);
-  };
-
-  const doClearCacheScope = async (s: string) => {
-    setMsg(null);
-    setError(null);
-    try {
-      const r = await fetch("http://localhost:8000/api/ops/rate-limits/cache", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": getCsrfToken(),
-        },
-        body: JSON.stringify({ scope: s }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
-      setData(d);
-      setMsg(`Cleared cache for ${s}.`);
-      notifySuccess(`Cleared cache for ${s}.`);
-    } catch (e: any) {
-      setError(e.message || "Clear cache failed.");
-      notifyError(e.message || "Clear cache failed.");
-    }
-  };
-
-  const populateEdit = (s: string, ur: string, ir: string) => {
-    setScope(s);
-    setUserRate(ur || "");
-    setIpRate(ir || "");
-  };
-
-  const removeOverride = (s: string) => {
-    setConfirmRemoveScope(s);
-  };
-
-  const doRemoveOverride = async (s: string) => {
-    setMsg(null);
-    setError(null);
-    try {
-      const r = await fetch(`http://localhost:8000/api/ops/rate-limits?scope=${encodeURIComponent(s)}`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: {
-          "X-CSRFToken": getCsrfToken(),
-        },
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
-      setData(d);
-      setMsg(`Removed override for ${s}.`);
-      notifySuccess(`Removed override for ${s}.`);
-    } catch (e: any) {
-      setError(e.message || "Remove override failed.");
-      notifyError(e.message || "Remove override failed.");
-    }
-  };
-
-  const applyPreset = async (preset: "competition" | "practice" | "heavy") => {
-    setMsg(null);
-    setError(null);
-    if (!presetConfig?.presets || !presetConfig.presets[preset]) {
-      setError("Preset config not loaded or preset missing.");
-      return;
-    }
-    const presets = presetConfig.presets[preset];
-
-    try {
-      for (const [s, rates] of Object.entries(presets)) {
-        const r = await fetch("http://localhost:8000/api/ops/rate-limits", {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": getCsrfToken(),
-          },
-          body: JSON.stringify({ scope: s, user_rate: (rates as any).user_rate, ip_rate: (rates as any).ip_rate }),
-        });
-        if (!r.ok) {
-          const d = await r.json().catch(() => ({}));
-          throw new Error(d.detail || `Failed applying ${preset} preset for scope ${s} (HTTP ${r.status})`);
-        }
-      }
-      const rr = await fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" });
-      const dd = await rr.json().catch(() => ({}));
-      if (!rr.ok) throw new Error(dd.detail || `HTTP ${rr.status}`);
-      setData(dd);
-      setMsg(`Applied ${preset} preset.`);
-      notifySuccess(`Applied ${preset} preset.`);
-    } catch (e: any) {
-      setError(e.message || "Apply preset failed.");
-      notifyError(e.message || "Apply preset failed.");
-    }
-  };
-
-  const applyEnvPreset = async (env: "dev" | "staging" | "prod") => {
-    setMsg(null);
-    setError(null);
-    if (!presetConfig?.env_presets || !presetConfig.env_presets[env]) {
-      setError("Environment preset config not loaded or preset missing.");
-      return;
-    }
-    const presets = presetConfig.env_presets[env];
-
-    try {
-      for (const [s, rates] of Object.entries(presets)) {
-        const r = await fetch("http://localhost:8000/api/ops/rate-limits", {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": getCsrfToken(),
-          },
-          body: JSON.stringify({ scope: s, user_rate: (rates as any).user_rate, ip_rate: (rates as any).ip_rate }),
-        });
-        if (!r.ok) {
-          const d = await r.json().catch(() => ({}));
-          throw new Error(d.detail || `Failed applying ${env} preset for scope ${s} (HTTP ${r.status})`);
-        }
-      }
-      const rr = await fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" });
-      const dd = await rr.json().catch(() => ({}));
-      if (!rr.ok) throw new Error(dd.detail || `HTTP ${rr.status}`);
-      setData(dd);
-      setMsg(`Applied ${env} environment preset.`);
-      notifySuccess(`Applied ${env} environment preset.`);
-    } catch (e: any) {
-      setError(e.message || "Apply environment preset failed.");
-      notifyError(e.message || "Apply environment preset failed.");
-    }
-  };
-
   const dryRunCompute = (overrides: Record<string, { user_rate: string; ip_rate: string }>) => {
     if (!data) return;
     const rows: DryRow[] = [];
     const defaults = data.defaults || {};
     const effective = data.effective || {};
-    for (const [scope, rates] of Object.entries(overrides)) {
-      const current_user = (effective[scope]?.user_rate as string | undefined) ?? (defaults[scope] as string | undefined);
-      const current_ip = (effective[scope]?.ip_rate as string | undefined) ?? (defaults[`${scope}-ip`] as string | undefined);
+    for (const [sc, rates] of Object.entries(overrides)) {
+      const current_user = (effective[sc]?.user_rate as string | undefined) ?? (defaults[sc] as string | undefined);
+      const current_ip = (effective[sc]?.ip_rate as string | undefined) ?? (defaults[`${sc}-ip`] as string | undefined);
       const override_user_blank = (rates.user_rate ?? "") === "";
       const override_ip_blank = (rates.ip_rate ?? "") === "";
-      const new_user = override_user_blank ? (defaults[scope] as string | undefined) : (rates.user_rate as string);
-      const new_ip = override_ip_blank ? (defaults[`${scope}-ip`] as string | undefined) : (rates.ip_rate as string);
+      const new_user = override_user_blank ? (defaults[sc] as string | undefined) : (rates.user_rate as string);
+      const new_ip = override_ip_blank ? (defaults[`${sc}-ip`] as string | undefined) : (rates.ip_rate as string);
 
       const cur_user_pm = rateToPerMinute(current_user);
       const new_user_pm = rateToPerMinute(new_user);
@@ -457,7 +211,7 @@ export default function OpsRateLimitsPage() {
           : "same";
 
       rows.push({
-        scope,
+        scope: sc,
         current_user_rate: current_user,
         current_ip_rate: current_ip,
         new_user_rate: new_user,
@@ -475,10 +229,8 @@ export default function OpsRateLimitsPage() {
   };
 
   const dryRunPreset = (preset: "competition" | "practice" | "heavy") => {
-    setMsg(null);
-    setError(null);
     if (!presetConfig?.presets || !presetConfig.presets[preset]) {
-      setError("Preset config not loaded or preset missing.");
+      notifyError("Preset config not loaded or preset missing.");
       return;
     }
     setDryRunTitle(`Dry-run: ${preset} preset`);
@@ -486,14 +238,105 @@ export default function OpsRateLimitsPage() {
   };
 
   const dryRunEnvPreset = (env: "dev" | "staging" | "prod") => {
-    setMsg(null);
-    setError(null);
     if (!presetConfig?.env_presets || !presetConfig.env_presets[env]) {
-      setError("Environment preset config not loaded or preset missing.");
+      notifyError("Environment preset config not loaded or preset missing.");
       return;
     }
     setDryRunTitle(`Dry-run: ${env} environment preset`);
     dryRunCompute(presetConfig.env_presets[env]);
+  };
+
+  const applyFromDryRun = async () => {
+    if (!dryRunOverrides) return;
+    try {
+      for (const [s, rates] of Object.entries(dryRunOverrides)) {
+        const r = await fetch("/api/ops/rate-limits", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+          body: JSON.stringify({ scope: s, user_rate: (rates as any).user_rate, ip_rate: (rates as any).ip_rate }),
+        });
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          throw new Error(d.detail || `Failed applying override for scope ${s} (HTTP ${r.status})`);
+        }
+      }
+      await reloadAll(true);
+      setDryRunRows([]);
+      setDryRunOverrides(null);
+      setDryRunTitle("");
+      notifySuccess("Applied dry-run overrides.");
+    } catch (e: any) {
+      notifyError(e?.message || "Apply from preview failed.");
+    }
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const r = await fetch("/api/ops/rate-limits", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+        body: JSON.stringify({ scope, user_rate: userRate, ip_rate: ipRate }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setData(d);
+      notifySuccess("Updated rate limits.");
+    } catch (e: any) {
+      notifyError(e?.message || "Update failed.");
+    }
+  };
+
+  const doClearCacheAll = async () => {
+    try {
+      const r = await fetch("/api/ops/rate-limits/cache", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+        body: JSON.stringify({}),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setData(d);
+      notifySuccess("Cleared all rate-limit cache.");
+    } catch (e: any) {
+      notifyError(e?.message || "Clear cache failed.");
+    }
+  };
+
+  const doClearCacheScope = async (s: string) => {
+    try {
+      const r = await fetch("/api/ops/rate-limits/cache", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+        body: JSON.stringify({ scope: s }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setData(d);
+      notifySuccess(`Cleared cache for ${s}.`);
+    } catch (e: any) {
+      notifyError(e?.message || "Clear cache failed.");
+    }
+  };
+
+  const doRemoveOverride = async (s: string) => {
+    try {
+      const r = await fetch(`/api/ops/rate-limits?scope=${encodeURIComponent(s)}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "X-CSRFToken": getCsrfToken() },
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setData(d);
+      notifySuccess(`Removed override for ${s}.`);
+    } catch (e: any) {
+      notifyError(e?.message || "Remove override failed.");
+    }
   };
 
   if (error) {
@@ -501,7 +344,7 @@ export default function OpsRateLimitsPage() {
   }
   if (!data) return <div>Loading...</div>;
 
-  const scopes = Object.keys(data.effective);
+  const scopes = Object.keys(data.effective || {});
 
   return (
     <div className="space-y-6">
@@ -509,9 +352,7 @@ export default function OpsRateLimitsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Rate Limits (Ops)</h1>
           <div className="text-xs text-gray-600">Last refreshed: {lastRefreshedAt || "—"}</div>
-          {autoRefresh && (
-            <div className="text-xs text-gray-600">Next refresh in: {nextRefreshSecondsLeft ?? "—"}s</div>
-          )}
+          {autoRefresh && <div className="text-xs text-gray-600">Next refresh in: {nextRefreshSecondsLeft ?? "—"}s</div>}
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sm">
@@ -536,15 +377,6 @@ export default function OpsRateLimitsPage() {
               <option value={120000}>120s</option>
             </select>
           </div>
-          {autoRefresh && (
-            <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded" title="Auto-refresh enabled">Auto-refresh on</span>
-          )}
-          {me?.isStaff ? (
-            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">Staff</span>
-          ) : (
-            <span className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">Not staff</span>
-          )}
-          {me?.isSuperuser && <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">Superuser</span>}
           <button
             onClick={() => reloadAll(false)}
             className="px-3 py-2 border rounded hover:bg-gray-50"
@@ -553,28 +385,20 @@ export default function OpsRateLimitsPage() {
           >
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
-          <button onClick={clearCache} className="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">
+          <button onClick={() => setConfirmClearAllCache(true)} className="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">
             Clear all cache
           </button>
         </div>
       </div>
 
-      
-
-      {/* Confirm modals for cache clear and override removal */}
+      {/* Confirm modals */}
       {confirmClearAllCache && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded shadow p-6 w-full max-w-md">
             <h3 className="text-lg font-medium mb-2">Clear all rate-limit cache?</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              This will remove all cached rate-limit values and force re-read from DB/defaults.
-            </p>
+            <p className="text-sm text-gray-600 mb-4">This will remove all cached rate-limit values.</p>
             <div className="flex justify-end space-x-2">
-              <button
-                className="px-3 py-2 border rounded"
-                disabled={applyLoading}
-                onClick={() => setConfirmClearAllCache(false)}
-              >
+              <button className="px-3 py-2 border rounded" disabled={applyLoading} onClick={() => setConfirmClearAllCache(false)}>
                 Cancel
               </button>
               <button
@@ -598,15 +422,9 @@ export default function OpsRateLimitsPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded shadow p-6 w-full max-w-md">
             <h3 className="text-lg font-medium mb-2">Clear cache for “{confirmClearScope}”?</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              This will remove cached values for this scope.
-            </p>
+            <p className="text-sm text-gray-600 mb-4">This will remove cached values for this scope.</p>
             <div className="flex justify-end space-x-2">
-              <button
-                className="px-3 py-2 border rounded"
-                disabled={applyLoading}
-                onClick={() => setConfirmClearScope(null)}
-              >
+              <button className="px-3 py-2 border rounded" disabled={applyLoading} onClick={() => setConfirmClearScope(null)}>
                 Cancel
               </button>
               <button
@@ -631,15 +449,9 @@ export default function OpsRateLimitsPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded shadow p-6 w-full max-w-md">
             <h3 className="text-lg font-medium mb-2">Remove override for “{confirmRemoveScope}”?</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              This will delete the DB override row for this scope.
-            </p>
+            <p className="text-sm text-gray-600 mb-4">This will delete the DB override row for this scope.</p>
             <div className="flex justify-end space-x-2">
-              <button
-                className="px-3 py-2 border rounded"
-                disabled={applyLoading}
-                onClick={() => setConfirmRemoveScope(null)}
-              >
+              <button className="px-3 py-2 border rounded" disabled={applyLoading} onClick={() => setConfirmRemoveScope(null)}>
                 Cancel
               </button>
               <button
@@ -661,15 +473,147 @@ export default function OpsRateLimitsPage() {
       )}
 
       <section>
+        <h2 className="text-lg font-medium mb-2">Effective Rates</h2>
+        <table className="min-w-full border">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="p-2 text-left">Scope</th>
+              <th className="p-2 text-left">User rate</th>
+              <th className="p-2 text-left">IP rate</th>
+              <th className="p-2 text-left">Cache</th>
+              <th className="p-2 text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scopes.map((s) => (
+              <tr key={s} className="border-t">
+                <td className="p-2">{s}</td>
+                <td className="p-2">{data.effective[s]?.user_rate ?? data.defaults[s] ?? "-"}</td>
+                <td className="p-2">{data.effective[s]?.ip_rate ?? data.defaults[`${s}-ip`] ?? "-"}</td>
+                <td className="p-2 text-xs">
+                  U: {data.cache[s]?.user_cached ? "cached" : "—"} ({data.cache[s]?.user_value ?? "—"}) • I:{" "}
+                  {data.cache[s]?.ip_cached ? "cached" : "—"} ({data.cache[s]?.ip_value ?? "—"})
+                </td>
+                <td className="p-2">
+                  <button className="px-2 py-1 border rounded text-sm" onClick={() => setConfirmClearScope(s)}>
+                    Clear cache
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-medium mb-2">DB Overrides</h2>
+        {data.db_overrides.length === 0 ? (
+          <div className="text-sm text-gray-600">No overrides.</div>
+        ) : (
+          <table className="min-w-full border">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="p-2 text-left">Scope</th>
+                <th className="p-2 text-left">User rate</th>
+                <th className="p-2 text-left">IP rate</th>
+                <th className="p-2 text-left">Updated</th>
+                <th className="p-2 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.db_overrides.map((o) => (
+                <tr key={o.scope} className="border-t">
+                  <td className="p-2">{o.scope}</td>
+                  <td className="p-2">{o.user_rate || "—"}</td>
+                  <td className="p-2">{o.ip_rate || "—"}</td>
+                  <td className="p-2 text-xs">{new Date(o.updated_at).toLocaleString()}</td>
+                  <td className="p-2">
+                    <div className="flex items-center gap-2">
+                      <button className="px-2 py-1 border rounded text-sm" onClick={() => setConfirmRemoveScope(o.scope)}>
+                        Remove
+                      </button>
+                      <button className="px-2 py-1 border rounded text-sm" onClick={() => setConfirmClearScope(o.scope)}>
+                        Clear cache
+                      </button>
+                      <button className="px-2 py-1 border rounded text-sm" onClick={() => {
+                        setScope(o.scope);
+                        setUserRate(o.user_rate || "");
+                        setIpRate(o.ip_rate || "");
+                      }}>
+                        Edit
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section>
+        <h2 className="text-lg font-medium mb-2">Update Override</h2>
+        <form onSubmit={onSubmit} className="space-y-2">
+          <div className="flex items-center gap-2">
+            <input className="border rounded px-3 py-2" placeholder="scope" value={scope} onChange={(e) => setScope(e.target.value)} />
+            <input className="border rounded px-3 py-2" placeholder="user_rate (e.g., 10/min)" value={userRate} onChange={(e) => setUserRate(e.target.value)} />
+            <input className="border rounded px-3 py-2" placeholder="ip_rate (e.g., 30/min)" value={ipRate} onChange={(e) => setIpRate(e.target.value)} />
+            <button className="bg-blue-600 text-white px-3 py-2 rounded" type="submit">Save</button>
+          </div>
+          <div className="text-xs text-gray-600">Blank user_rate or ip_rate clears that override and falls back to default.</div>
+        </form>
+      </section>
+
+      <section>
         <h2 className="text-lg font-medium mb-2">Presets</h2>
         <div className="space-x-2">
-          <button
-            className="bg-blue-600 text-white px-3 py-2 rounded"
-            onClick={() => applyPreset("competition")}
-          >
-            Competition mode
-          </button>
-          <button className="px-3 py-2 border rounded" onClick={() => dryRunPreset("competition")}>
-            Preview
-          </button>
-          <button
+          <button className="bg-blue-600 text-white px-3 py-2 rounded" onClick={() => dryRunPreset("competition")}>Preview competition</button>
+          <button className="bg-blue-600 text-white px-3 py-2 rounded" onClick={() => dryRunPreset("practice")}>Preview practice</button>
+          <button className="bg-blue-600 text-white px-3 py-2 rounded" onClick={() => dryRunPreset("heavy")}>Preview heavy</button>
+          <button className="px-3 py-2 border rounded" onClick={() => dryRunEnvPreset("dev")}>Preview dev env</button>
+          <button className="px-3 py-2 border rounded" onClick={() => dryRunEnvPreset("staging")}>Preview staging env</button>
+          <button className="px-3 py-2 border rounded" onClick={() => dryRunEnvPreset("prod")}>Preview prod env</button>
+        </div>
+
+        {dryRunRows.length > 0 && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-md font-medium">{dryRunTitle}</h3>
+              <div className="flex items-center gap-2">
+                <button className="bg-green-600 text-white px-3 py-2 rounded" onClick={applyFromDryRun}>Apply these changes</button>
+                <button className="px-3 py-2 border rounded" onClick={() => { setDryRunRows([]); setDryRunOverrides(null); setDryRunTitle(""); }}>Clear</button>
+              </div>
+            </div>
+            <table className="min-w-full border mt-2">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="p-2 text-left">Scope</th>
+                  <th className="p-2 text-left">User (current → new)</th>
+                  <th className="p-2 text-left">IP (current → new)</th>
+                  <th className="p-2 text-left">Fallback</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dryRunRows.map((r) => (
+                  <tr key={r.scope} className="border-t">
+                    <td className="p-2">{r.scope}</td>
+                    <td className={`p-2 ${r.user_direction === "up" ? "text-green-700" : r.user_direction === "down" ? "text-red-700" : "text-gray-700"}`}>
+                      {(r.current_user_rate ?? "—")} → {(r.new_user_rate ?? "—")}
+                    </td>
+                    <td className={`p-2 ${r.ip_direction === "up" ? "text-green-700" : r.ip_direction === "down" ? "text-red-700" : "text-gray-700"}`}>
+                      {(r.current_ip_rate ?? "—")} → {(r.new_ip_rate ?? "—")}
+                    </td>
+                    <td className="p-2 text-xs">
+                      {r.user_fallback ? "user:default " : ""}{r.ip_fallback ? "ip:default" : ""}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+

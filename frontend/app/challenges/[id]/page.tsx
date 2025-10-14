@@ -58,12 +58,12 @@ export default function ChallengeDetailPage({ params }: { params: { id: string }
   };
 
   useEffect(() => {
-    fetch(`http://localhost:8000/api/challenges/${id}`, { credentials: "include" })
+    fetch(`/api/challenges/${id}`, { credentials: "include" })
       .then((r) => r.json())
       .then(setChallenge)
       .catch((e) => notifyError(e?.message || "Failed to load challenge."));
 
-    fetch(`http://localhost:8000/api/content/challenges/${id}/writeups?status=approved`, { credentials: "include" })
+    fetch(`/api/content/challenges/${id}/writeups?status=approved`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setWriteups(d.results || []))
       .catch(() => {});
@@ -73,7 +73,7 @@ export default function ChallengeDetailPage({ params }: { params: { id: string }
     e.preventDefault();
     try {
       notify("info", "Submitting flag...");
-      const r = await fetch(`http://localhost:8000/api/challenges/${id}/submit`, {
+      const r = await fetch(`/api/challenges/${id}/submit`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -96,7 +96,7 @@ export default function ChallengeDetailPage({ params }: { params: { id: string }
     e.preventDefault();
     try {
       notify("info", "Submitting write-up...");
-      const r = await fetch(`http://localhost:8000/api/content/challenges/${id}/writeups`, {
+      const r = await fetch(`/api/content/challenges/${id}/writeups`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },

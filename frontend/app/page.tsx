@@ -9,7 +9,7 @@ export default function HomePage() {
   const checkBackend = async () => {
     try {
       notify("info", "Checking backend...");
-      const r = await fetch("http://localhost:8000/api/leaderboard", { credentials: "include" });
+      const r = await fetch("/api/leaderboard", { credentials: "include" });
       if (r.ok) {
         notifySuccess("Backend reachable.");
       } else {
@@ -25,7 +25,7 @@ export default function HomePage() {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Welcome to the CTF Platform</h1>
       <p className="text-gray-700">
-        This is a minimal frontend scaffold. The backend is exposed at <code className="bg-gray-100 px-1">http://localhost:8000/api</code>.
+        This is a minimal frontend scaffold. The backend API is available under <code className="bg-gray-100 px-1">/api</code> via the dev proxy.
       </p>
       <div>
         <button
