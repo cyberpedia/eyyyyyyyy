@@ -1,1 +1,17 @@
-This chart is a skeleton. Add deployments/services/ingress to deploy backend and frontend.
+CTF Platform Helm chart installed.
+
+Backend:
+- Deployment: {{ include "ctf.fullname" . }}-backend
+- Service: {{ include "ctf.fullname" . }}-backend
+- Ingress: {{ include "ctf.fullname" . }}-backend
+
+Celery:
+- Worker Deployment: {{ include "ctf.fullname" . }}-worker
+- Beat Deployment: {{ include "ctf.fullname" . }}-beat
+
+Access:
+- If using a cluster ingress controller, your backend should be reachable via the created Ingress.
+- WebSocket upgrades are enabled via NGINX annotations.
+
+Configure:
+- Override values via `values.yaml` (image repo/tag, env, service.port).

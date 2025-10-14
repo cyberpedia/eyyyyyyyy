@@ -220,5 +220,22 @@ class OwnershipEvent(models.Model):
         return f"KotH {self.challenge_id} owned by {self.owner_team_id}"
 
 
+class RoundTick(models.Model):
+    """
+    Stores processed tick indices for a challenge. Optional if cache is used; useful for auditing/safety.
+    """
+    challenge = models.ForeignKey(Challenge, on_delete=models.CASCADE, related_name="round_ticks")
+    tick_index = models.BigIntegerField()
+    started_at = models.DateTimeField(default=timezone.now)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["challenge", "-tick_index"])]
+        unique_together = (("challenge", "tick_index"),)
+
+    def __str__(self) -> str:
+        return f"Tick {self.tick_index} challenge={self.challenge_id}"
+
+
 def verify_flag(challenge: Challenge, submitted_flag: str) -> bool:
     return hmac.compare_digest(hmac_flag(submitted_flag), challenge.flag_hmac)

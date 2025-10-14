@@ -2,22 +2,78 @@ from __future__ import annotations
 
 import secrets
 from datetime import timedelta
-from typing import Optional
+from typing import Optional, Tuple, List
 
+import requests
 from celery import shared_task
+from django.db import transaction
 from django.utils import timezone
 
 from apps.core.models import ScoreEvent
-from .models import Challenge, TeamServiceInstance, DefenseToken, Challenge as ChallengeModel
+from .models import (
+    Challenge,
+    TeamServiceInstance,
+    DefenseToken,
+    Challenge as ChallengeModel,
+    OwnershipEvent,
+)
+from .models import Challenge as ChallengeModel
+
+
+def _http_probe(url: str, timeout: float = 3.0) -> Tuple[bool, Optional[str]]:
+    try:
+        r = requests.get(url, timeout=timeout)
+        if r.status_code == 200:
+            return True, r.text
+        return False, None
+    except Exception:
+        return False, None
 
 
 def _run_checker(instance: TeamServiceInstance, config: dict) -> bool:
     """
-    Placeholder checker that should probe the instance endpoint to verify service health / ownership proof.
-    Returns True if healthy. In production, implement per-challenge probes based on checker_config.
+    Simple health checker:
+    - If config has 'health_path', append to endpoint_url before probing.
+    - Returns True if 200 OK.
     """
-    # TODO: Implement actual probing (HTTP/TCP/command) based on config
-    return instance.status == TeamServiceInstance.STATUS_RUNNING
+    if not instance.endpoint_url:
+        return False
+    path = (config or {}).get("health_path", "")
+    url = instance.endpoint_url.rstrip("/") + ("/" + path.lstrip("/") if path else "")
+    ok, _ = _http_probe(url)
+    return ok
+
+
+def _compute_koth_owner(instances: List[TeamServiceInstance], config: dict) -> Optional[int]:
+    """
+    Determine KotH owner by probing each instance for a proof keyword.
+    - If config['proof_path'] is set, append to endpoint_url.
+    - If config['proof_keyword'] is set (e.g., 'owned_by:'), parse team id from response.
+    - Fallback: first healthy instance wins ownership.
+    """
+    proof_path = (config or {}).get("proof_path", "")
+    keyword = (config or {}).get("proof_keyword", "owned_by:")
+    for inst in instances:
+        if not inst.endpoint_url:
+            continue
+        url = inst.endpoint_url.rstrip("/") + ("/" + proof_path.lstrip("/") if proof_path else "")
+        ok, body = _http_probe(url)
+        inst.last_check_at = timezone.now()
+        inst.save(update_fields=["last_check_at"])
+        if ok:
+            # Try keyword parse
+            if body and keyword in body:
+                try:
+                    # Expect format 'owned_by:<team_id>'
+                    idx = body.find(keyword)
+                    tid = int(body[idx + len(keyword) :].strip().split()[0])
+                    if tid == inst.team_id:
+                        return tid
+                except Exception:
+                    pass
+            # Fallback: healthy instance implies ownership by its team
+            return inst.team_id
+    return None
 
 
 def mint_defense_token(team_id: int, challenge: ChallengeModel, instance: Optional[TeamServiceInstance], tick_index: int) -> DefenseToken:
@@ -44,7 +100,7 @@ def run_tick(challenge_id: int, tick_index: int):
     """
     Periodic tick for multi-mode challenges.
     - ATTACK_DEFENSE: award defense uptime and mint tokens per team instance.
-    - KOTH: award hold points to current owner (ownership detection to be implemented).
+    - KOTH: detect current owner; award hold points and handle ownership transitions.
     """
     try:
         challenge = Challenge.objects.get(id=challenge_id)
@@ -52,7 +108,7 @@ def run_tick(challenge_id: int, tick_index: int):
         return
 
     if challenge.mode == Challenge.MODE_ATTACK_DEFENSE:
-        points_def = int(challenge.checker_config.get("ad_defense_points", 5))
+        points_def = int((challenge.checker_config or {}).get("ad_defense_points", 5))
         instances = TeamServiceInstance.objects.filter(challenge_id=challenge_id, status=TeamServiceInstance.STATUS_RUNNING)
         for inst in instances:
             ok = _run_checker(inst, challenge.checker_config or {})
@@ -70,11 +126,11 @@ def run_tick(challenge_id: int, tick_index: int):
                 mint_defense_token(inst.team_id, challenge, inst, tick_index)
 
     elif challenge.mode == Challenge.MODE_KOTH:
-        # Ownership detection should set the current owner based on checker probes.
-        # For now, this is a stub; integrate your checker and update OwnershipEvent accordingly.
-        owner_team_id = None  # TODO: compute owner team id via checker
+        instances = TeamServiceInstance.objects.filter(challenge_id=challenge_id, status=TeamServiceInstance.STATUS_RUNNING)
+        owner_team_id = _compute_koth_owner(list(instances), challenge.checker_config or {})
+        points_hold = int((challenge.checker_config or {}).get("koth_points_per_tick", 5))
         if owner_team_id:
-            points_hold = int(challenge.checker_config.get("koth_points_per_tick", 5))
+            # Award hold points
             ScoreEvent.objects.create(
                 team_id=owner_team_id,
                 user=None,
@@ -83,3 +139,38 @@ def run_tick(challenge_id: int, tick_index: int):
                 delta=points_hold,
                 metadata={"tick": tick_index},
             )
+            # Handle ownership transitions (close previous, add new if changed)
+            with transaction.atomic():
+                prev = OwnershipEvent.objects.filter(challenge_id=challenge_id, to_ts__isnull=True).order_by("-from_ts").first()
+                now = timezone.now()
+                if prev and prev.owner_team_id != owner_team_id:
+                    prev.to_ts = now
+                    prev.save(update_fields=["to_ts"])
+                    OwnershipEvent.objects.create(challenge_id=challenge_id, owner_team_id=owner_team_id, from_ts=now, points_awarded=0)
+                elif not prev:
+                    OwnershipEvent.objects.create(challenge_id=challenge_id, owner_team_id=owner_team_id, from_ts=now, points_awarded=0)
+
+
+@shared_task
+def schedule_ticks():
+    """
+    Periodic scheduler that computes the current tick for each AD/KotH challenge
+    and dispatches run_tick for new ticks since the last processed tick.
+    """
+    now = timezone.now()
+    challenges = Challenge.objects.exclude(mode=Challenge.MODE_JEOPARDY)
+    for c in challenges:
+        if not c.released_at or c.tick_seconds <= 0:
+            continue
+        # Compute current tick based on release time
+        elapsed = (now - c.released_at).total_seconds()
+        current_tick = int(elapsed // c.tick_seconds)
+        # Store last processed tick in cache keyed by challenge id
+        from django.core.cache import cache
+        key = f"koth_ad:last_tick:{c.id}"
+        last_tick = cache.get(key, -1)
+        if current_tick > last_tick:
+            # Dispatch ticks sequentially to avoid skipping (in case of downtime)
+            for t in range(last_tick + 1, current_tick + 1):
+                run_tick.delay(c.id, t)
+            cache.set(key, current_tick, timeout=c.tick_seconds * 5)

@@ -4,9 +4,11 @@ System design and initial scaffold for the CTF platform.
 
 Quickstart (dev)
 - Prereqs: Docker, Docker Compose, Node 18+, Python 3.12 (optional if not using Docker).
-- Start backend + Postgres + Redis:
+- Start backend + Postgres + Redis + Celery worker/beat:
   - docker-compose up --build
   - Backend: http://localhost:8000/api
+  - Celery worker: service "worker"
+  - Celery beat: service "beat"
 - Start frontend:
   - cd frontend && npm install && npm run dev
   - Frontend: http://localhost:3000

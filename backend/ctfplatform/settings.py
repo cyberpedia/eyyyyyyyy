@@ -136,6 +136,14 @@ else:
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", _redis_url)
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", _redis_url)
 CELERY_TASK_ALWAYS_EAGER = os.getenv("CELERY_TASK_ALWAYS_EAGER", "0") == "1"
+CELERY_TIMEZONE = TIME_ZONE
+from datetime import timedelta as _celery_timedelta
+CELERY_BEAT_SCHEDULE = {
+    "schedule-multi-mode-ticks": {
+        "task": "apps.challenges.tasks.schedule_ticks",
+        "schedule": _celery_timedelta(seconds=int(os.getenv("TICK_SCHEDULER_INTERVAL_SECONDS", "30"))),
+    },
+}
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

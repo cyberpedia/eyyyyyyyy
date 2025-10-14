@@ -71,3 +71,10 @@ class OwnershipEventAdmin(admin.ModelAdmin):
     list_display = ("id", "challenge", "owner_team", "from_ts", "to_ts", "points_awarded")
     list_filter = ("challenge",)
     search_fields = ("owner_team__name", "challenge__title")
+
+
+@admin.register(RoundTick)
+class RoundTickAdmin(admin.ModelAdmin):
+    list_display = ("id", "challenge", "tick_index", "started_at", "finished_at")
+    list_filter = ("challenge",)
+    search_fields = ("challenge__title",)
