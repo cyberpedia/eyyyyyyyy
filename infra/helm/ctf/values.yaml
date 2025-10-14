@@ -1,0 +1,24 @@
+image:
+  repository: example/ctf-backend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8000
+
+env:
+  DJANGO_DEBUG: "0"
+  FLAG_HMAC_PEPPER: "change-me"
+  REDIS_URL: "redis://redis:6379/1"
+  CHANNEL_REDIS_URL: "redis://redis:6379/2"
+  CELERY_BROKER_URL: "redis://redis:6379/3"
+  CELERY_RESULT_BACKEND: "redis://redis:6379/4"
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi

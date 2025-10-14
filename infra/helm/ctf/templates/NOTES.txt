@@ -1,0 +1,1 @@
+This chart is a skeleton. Add deployments/services/ingress to deploy backend and frontend.

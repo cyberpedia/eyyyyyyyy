@@ -1,0 +1,89 @@
+from __future__ import annotations
+
+from django.conf import settings
+from django.db import models
+from django.utils import timezone
+
+
+class Team(models.Model):
+    name = models.CharField(max_length=120, unique=True)
+    slug = models.SlugField(max_length=140, unique=True)
+    captain = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="captain_teams"
+    )
+    bio = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self) -> str:
+        return self.name
+
+    @property
+    def score(self) -> int:
+        total = self.score_events.aggregate(total=models.Sum("delta")).get("total")
+        return total or 0
+
+
+class Membership(models.Model):
+    ROLE_MEMBER = "member"
+    ROLE_CAPTAIN = "captain"
+    ROLE_CHOICES = [(ROLE_MEMBER, "Member"), (ROLE_CAPTAIN, "Captain")]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="memberships")
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="memberships")
+    role = models.CharField(max_length=16, choices=ROLE_CHOICES, default=ROLE_MEMBER)
+    joined_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = (("user", "team"),)
+
+    def __str__(self) -> str:
+        return f"{self.user_id} in {self.team_id} ({self.role})"
+
+
+class ScoreEvent(models.Model):
+    TYPE_SOLVE = "solve"
+    TYPE_FIRST_BLOOD = "first_blood"
+    TYPE_BONUS = "bonus"
+    TYPE_WRITEUP_BONUS = "writeup_bonus"
+    TYPE_BADGE = "badge"
+
+    TYPE_CHOICES = [
+        (TYPE_SOLVE, "Solve"),
+        (TYPE_FIRST_BLOOD, "First Blood"),
+        (TYPE_BONUS, "Bonus"),
+        (TYPE_WRITEUP_BONUS, "Write-up Bonus"),
+        (TYPE_BADGE, "Badge"),
+    ]
+
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="score_events")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    challenge_id = models.IntegerField(null=True, blank=True)
+    type = models.CharField(max_length=32, choices=TYPE_CHOICES)
+    delta = models.IntegerField()
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["team", "-created_at"])]
+
+    def __str__(self) -> str:
+        return f"{self.type} {self.delta} for team {self.team_id}"
+
+
+class AuditLog(models.Model):
+    actor_user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    actor_team = models.ForeignKey(Team, null=True, blank=True, on_delete=models.SET_NULL)
+    action = models.CharField(max_length=200)
+    target_type = models.CharField(max_length=120)
+    target_id = models.CharField(max_length=120)
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    data = models.JSONField(default=dict, blank=True)
+    prev_hash = models.CharField(max_length=128, blank=True, default="")
+    hash = models.CharField(max_length=128)
+
+    class Meta:
+        indexes = [models.Index(fields=["target_type", "target_id"])]
+
+    def __str__(self) -> str:
+        return f"{self.timestamp} {self.action} {self.target_type}:{self.target_id}"
