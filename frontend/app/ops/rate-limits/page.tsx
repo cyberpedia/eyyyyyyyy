@@ -20,6 +20,10 @@ type ApiResponse = {
 export default function OpsRateLimitsPage() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scope, setScope] = useState("");
+  const [userRate, setUserRate] = useState("");
+  const [ipRate, setIpRate] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" })
@@ -34,6 +38,37 @@ export default function OpsRateLimitsPage() {
       .catch((e) => setError(e.message));
   }, []);
 
+  const getCsrfToken = () => {
+    if (typeof document === "undefined") return "";
+    const match = document.cookie.match(/csrftoken=([^;]+)/);
+    return match ? match[1] : "";
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg(null);
+    setError(null);
+    try {
+      const r = await fetch("http://localhost:8000/api/ops/rate-limits", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+        },
+        body: JSON.stringify({ scope, user_rate: userRate, ip_rate: ipRate }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        throw new Error(d.detail || `HTTP ${r.status}`);
+      }
+      setData(d);
+      setMsg("Updated rate limits.");
+    } catch (e: any) {
+      setError(e.message || "Update failed.");
+    }
+  };
+
   if (error) {
     return <div className="text-red-700">Error: {error}. Ensure you are logged in and have staff privileges.</div>;
   }
@@ -44,6 +79,48 @@ export default function OpsRateLimitsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Rate Limits (Ops)</h1>
+
+      <section>
+        <h2 className="text-lg font-medium mb-2">Update Override</h2>
+        <form onSubmit={onSubmit} className="space-y-3 max-w-xl">
+          <div>
+            <label className="block text-sm mb-1">Scope</label>
+            <input
+              className="border w-full px-3 py-2"
+              placeholder="e.g., flag-submit"
+              value={scope}
+              onChange={(e) => setScope(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1">User rate</label>
+              <input
+                className="border w-full px-3 py-2"
+                placeholder="e.g., 10/min (leave blank to clear)"
+                value={userRate}
+                onChange={(e) => setUserRate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">IP rate</label>
+              <input
+                className="border w-full px-3 py-2"
+                placeholder="e.g., 30/min (leave blank to clear)"
+                value={ipRate}
+                onChange={(e) => setIpRate(e.target.value)}
+              />
+            </div>
+          </div>
+          <button className="bg-blue-600 text-white px-4 py-2 rounded" type="submit">
+            Save
+          </button>
+          {msg && <div className="text-sm mt-2 text-green-700">{msg}</div>}
+        </form>
+        <p className="text-xs text-gray-600 mt-2">
+          Format: number/period (e.g., 10/min, 100/hour). Leave blank to remove override and use defaults.
+        </p>
+      </section>
 
       <section>
         <h2 className="text-lg font-medium mb-2">Effective Rates</h2>

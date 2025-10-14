@@ -15,6 +15,9 @@ This project applies rate limiting at two layers:
   - Admin > Rate limit configs
   - Model apps.core.RateLimitConfig allows updating `user_rate` and `ip_rate` per scope at runtime.
   - Cached for ~60s to avoid DB hot path.
+- Ops viewer & API:
+  - Frontend: /ops/rate-limits
+  - Backend: GET/POST /api/ops/rate-limits (staff-only)
 
 2) Edge-level (Ingress/Proxy)
 - NGINX Ingress (Kubernetes)
@@ -66,9 +69,7 @@ This project applies rate limiting at two layers:
     ```
 - Cloudflare (WAF/rulesets)
   - Use WAF rules to rate-limit specific paths, e.g. /api/auth/login and /api/challenges/*/submit.
-  - Example:
-    - Rule 1: If http.request.uri.path eq "/api/auth/login" then rate limit at 5/min by IP.
-    - Rule 2: If http.request.uri.path contains "/api/challenges/" and ends_with "/submit" then rate limit at 10/min by IP.
+  - Template examples are provided under infra/cloudflare/rate-limits.md.
   - Pair with Bot Fight Mode and JS challenge for suspicious traffic.
 
 Best practices

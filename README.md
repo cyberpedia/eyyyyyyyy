@@ -52,8 +52,11 @@ Backend (Django)
 
 Ops (Rate limits viewer)
 - Frontend page: http://localhost:3000/ops/rate-limits (requires staff user in session)
-- Backend API: GET http://localhost:8000/api/ops/rate-limits
-  - Shows defaults, DB overrides, effective values, and cache state.
+- Backend API:
+  - GET http://localhost:8000/api/ops/rate-limits → view defaults, DB overrides, effective values, cache state
+  - POST http://localhost:8000/api/ops/rate-limits → upsert override {scope, user_rate, ip_rate}; blank values clear override. CSRF required.
+- Edge rate-limit templates:
+  - Cloudflare: infra/cloudflare/rate-limits.md
 
 Frontend (Next.js)
 - Location: frontend/

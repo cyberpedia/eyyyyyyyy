@@ -160,12 +160,12 @@ class TeamTransferView(APIView):
 
 class RateLimitsStatusView(APIView):
     """
-    Non-admin ops view: visualize throttle defaults, DB overrides, effective rates and cache state.
+    Non-admin ops view: visualize and update throttle defaults, DB overrides, effective rates and cache state.
     Requires staff user (IsAdminUser) but avoids using Django admin.
     """
     permission_classes = [permissions.IsAdminUser]
 
-    def get(self, request):
+    def _payload(self):
         defaults: Dict[str, str] = dict(api_settings.DEFAULT_THROTTLE_RATES or {})
         db_rows = list(
             RateLimitConfig.objects.all().order_by("scope").values("scope", "user_rate", "ip_rate", "updated_at")
@@ -197,11 +197,49 @@ class RateLimitsStatusView(APIView):
                 "ip_value": cached_ip if cached_ip is not None else None,
             }
 
-        return Response(
-            {
-                "defaults": defaults,
-                "db_overrides": db_rows,
-                "effective": effective,
-                "cache": cache_state,
-            }
+        return {
+            "defaults": defaults,
+            "db_overrides": db_rows,
+            "effective": effective,
+            "cache": cache_state,
+        }
+
+    def get(self, request):
+        return Response(self._payload())
+
+    def post(self, request):
+        """
+        Upsert a RateLimitConfig row.
+        Body: { "scope": "flag-submit", "user_rate": "10/min", "ip_rate": "30/min" }
+        Empty strings clear the override; invalid formats return 400.
+        """
+        scope = (request.data.get("scope") or "").strip()
+        user_rate = (request.data.get("user_rate") or "").strip()
+        ip_rate = (request.data.get("ip_rate") or "").strip()
+
+        if not scope:
+            return Response({"detail": "scope required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate rate format using DRF's parser
+        from rest_framework.throttling import SimpleRateThrottle
+
+        parser = SimpleRateThrottle()
+        def _validate(rate: str) -> bool:
+            if rate == "":
+                return True
+            return parser.parse_rate(rate) is not None
+
+        if not _validate(user_rate):
+            return Response({"detail": "invalid user_rate format"}, status=status.HTTP_400_BAD_REQUEST)
+        if not _validate(ip_rate):
+            return Response({"detail": "invalid ip_rate format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        obj, _created = RateLimitConfig.objects.update_or_create(
+            scope=scope, defaults={"user_rate": user_rate, "ip_rate": ip_rate}
         )
+
+        # Warm caches for immediate effect
+        cache.set(f"ratelimit:{scope}:user", user_rate or "", 60)
+        cache.set(f"ratelimit:{scope}:ip", ip_rate or "", 60)
+
+        return Response(self._payload(), status=status.HTTP_200_OK)
