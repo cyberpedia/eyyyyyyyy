@@ -52,6 +52,9 @@ Backend (Django)
 
 Ops (Rate limits viewer)
 - Frontend page: http://localhost:3000/ops/rate-limits (requires staff user in session)
+- Presets:
+  - Competition mode: flag-submit 10/min user + 30/min IP; login 5/min IP
+  - Practice mode: flag-submit 30/min user + 60/min IP; login 30/min IP
 - Backend API:
   - GET http://localhost:8000/api/ops/rate-limits → view defaults, DB overrides, effective values, cache state
   - POST http://localhost:8000/api/ops/rate-limits → upsert override {scope, user_rate, ip_rate}; blank values clear override. CSRF required.

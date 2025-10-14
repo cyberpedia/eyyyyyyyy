@@ -91,6 +91,28 @@ export default function OpsRateLimitsPage() {
     }
   };
 
+  const clearCacheScope = async (s: string) => {
+    setMsg(null);
+    setError(null);
+    try {
+      const r = await fetch("http://localhost:8000/api/ops/rate-limits/cache", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+        },
+        body: JSON.stringify({ scope: s }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setData(d);
+      setMsg(`Cleared cache for ${s}.`);
+    } catch (e: any) {
+      setError(e.message || "Clear cache failed.");
+    }
+  };
+
   const populateEdit = (s: string, ur: string, ir: string) => {
     setScope(s);
     setUserRate(ur || "");
@@ -117,6 +139,47 @@ export default function OpsRateLimitsPage() {
     }
   };
 
+  const applyPreset = async (preset: "competition" | "practice") => {
+    setMsg(null);
+    setError(null);
+    const presets: Record<string, { user_rate: string; ip_rate: string }> = preset === "competition"
+      ? {
+          "flag-submit": { user_rate: "10/min", ip_rate: "30/min" },
+          "login": { user_rate: "", ip_rate: "5/min" },
+        }
+      : {
+          "flag-submit": { user_rate: "30/min", ip_rate: "60/min" },
+          "login": { user_rate: "", ip_rate: "30/min" },
+        };
+
+    try {
+      // Apply each scope override
+      for (const [s, rates] of Object.entries(presets)) {
+        const r = await fetch("http://localhost:8000/api/ops/rate-limits", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCsrfToken(),
+          },
+          body: JSON.stringify({ scope: s, user_rate: rates.user_rate, ip_rate: rates.ip_rate }),
+        });
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          throw new Error(d.detail || `Failed applying ${preset} preset for scope ${s} (HTTP ${r.status})`);
+        }
+      }
+      // Refresh payload
+      const rr = await fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" });
+      const dd = await rr.json().catch(() => ({}));
+      if (!rr.ok) throw new Error(dd.detail || `HTTP ${rr.status}`);
+      setData(dd);
+      setMsg(`Applied ${preset} preset.`);
+    } catch (e: any) {
+      setError(e.message || "Apply preset failed.");
+    }
+  };
+
   if (error) {
     return <div className="text-red-700">Error: {error}. Ensure you are logged in and have staff privileges.</div>;
   }
@@ -132,6 +195,27 @@ export default function OpsRateLimitsPage() {
           Clear all cache
         </button>
       </div>
+
+      <section>
+        <h2 className="text-lg font-medium mb-2">Presets</h2>
+        <div className="space-x-2">
+          <button
+            className="bg-blue-600 text-white px-3 py-2 rounded"
+            onClick={() => applyPreset("competition")}
+          >
+            Competition mode
+          </button>
+          <button
+            className="bg-green-600 text-white px-3 py-2 rounded"
+            onClick={() => applyPreset("practice")}
+          >
+            Practice mode
+          </button>
+        </div>
+        <p className="text-xs text-gray-600 mt-2">
+          Presets quickly apply recommended limits for login and flag submissions. Adjust as needed for your event.
+        </p>
+      </section>
 
       <section>
         <h2 className="text-lg font-medium mb-2">Update Override</h2>
@@ -183,6 +267,7 @@ export default function OpsRateLimitsPage() {
               <th className="p-2 text-left">Scope</th>
               <th className="p-2 text-left">User rate</th>
               <th className="p-2 text-left">IP rate</th>
+              <th className="p-2 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -191,6 +276,11 @@ export default function OpsRateLimitsPage() {
                 <td className="p-2">{s}</td>
                 <td className="p-2">{data.effective[s]?.user_rate || "-"}</td>
                 <td className="p-2">{data.effective[s]?.ip_rate || "-"}</td>
+                <td className="p-2">
+                  <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => clearCacheScope(s)}>
+                    Clear cache
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -232,12 +322,22 @@ export default function OpsRateLimitsPage() {
                     >
                       Remove
                     </button>
+                    <button
+                      className="px-2 py-1 border rounded hover:bg-gray-50"
+                      onClick={() => clearCacheScope(r.scope)}
+                    >
+                      Clear cache
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+      </section>
+    </div>
+  );
+}
       </section>
 
       <section>

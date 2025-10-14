@@ -77,3 +77,15 @@ class OpsRateLimitsTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIsNone(cache.get("ratelimit:login:user"))
         self.assertIsNone(cache.get("ratelimit:login:ip"))
+
+    def test_clear_cache_scope(self):
+        cache.set("ratelimit:flag-submit:user", "10/min", 60)
+        cache.set("ratelimit:flag-submit:ip", "30/min", 60)
+        cache.set("ratelimit:login:ip", "5/min", 60)
+        r = self.client.post("/api/ops/rate-limits/cache", {"scope": "flag-submit"}, format="json")
+        self.assertEqual(r.status_code, 200)
+        # Only flag-submit cache cleared
+        self.assertIsNone(cache.get("ratelimit:flag-submit:user"))
+        self.assertIsNone(cache.get("ratelimit:flag-submit:ip"))
+        # login cache remains
+        self.assertEqual(cache.get("ratelimit:login:ip"), "5/min")
