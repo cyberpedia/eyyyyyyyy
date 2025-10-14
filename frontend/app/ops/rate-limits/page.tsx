@@ -28,6 +28,7 @@ export default function OpsRateLimitsPage() {
   const [presetConfig, setPresetConfig] = useState<any | null>(null);
   const [presetEditor, setPresetEditor] = useState<string>("");
   const [me, setMe] = useState<{ isSuperuser?: boolean; isStaff?: boolean } | null>(null);
+  const { notify, notifySuccess, notifyError } = useToast();
 
   // Helpers to compare rates across units by normalizing to tokens per minute
   const rateToPerMinute = (rate?: string | null): number | undefined => {
@@ -77,19 +78,7 @@ export default function OpsRateLimitsPage() {
   const [confirmClearScope, setConfirmClearScope] = useState<string | null>(null);
   const [confirmRemoveScope, setConfirmRemoveScope] = useState<string | null>(null);
 
-  // Toast system
-  type Toast = { id: number; type: "success" | "error"; message: string };
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const toastIdRef = useRef(0);
-  const notify = (type: "success" | "error", message: string) => {
-    const id = ++toastIdRef.current;
-    setToasts((ts) => [...ts, { id, type, message }]);
-    setTimeout(() => {
-      setToasts((ts) => ts.filter((t) => t.id !== id));
-    }, 4000);
-  };
-  const notifySuccess = (message: string) => notify("success", message);
-  const notifyError = (message: string) => notify("error", message);
+  
 
   useEffect(() => {
     fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" })
@@ -101,7 +90,10 @@ export default function OpsRateLimitsPage() {
         return r.json();
       })
       .then((d) => setData(d))
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        setError(e.message);
+        notifyError(e.message || "Failed to load rate limits.");
+      });
 
     fetch("http://localhost:8000/api/ops/rate-limits/presets", { credentials: "include" })
       .then(async (r) => {
@@ -115,7 +107,11 @@ export default function OpsRateLimitsPage() {
         setPresetConfig(d);
         setPresetEditor(JSON.stringify(d, null, 2));
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        setError(e.message);
+        notifyError(e.message || "Failed to load presets.");
+     _code }new)</;
+;
 
     fetch("http://localhost:8000/api/users/me", { credentials: "include" })
       .then(async (r) => (r.ok ? r.json() : {}))
@@ -419,19 +415,7 @@ export default function OpsRateLimitsPage() {
         </div>
       </div>
 
-      {/* Toasts */}
-      <div className="fixed bottom-4 right-4 z-50 space-y-2">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={`px-4 py-2 rounded shadow text-white ${
-              t.type === "success" ? "bg-green-600" : "bg-red-600"
-            }`}
-          >
-            {t.message}
-          </div>
-        ))}
-      </div>
+      
 
       {/* Confirm modals for cache clear and override removal */}
       {confirmClearAllCache && (

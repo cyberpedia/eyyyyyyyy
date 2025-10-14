@@ -13,9 +13,10 @@ type Row = {
 export default function LeaderboardPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [asOf, setAsOf] = useState<string>("");
-  const { notify, notifyError } = useToast();
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const loadLeaderboard = () => {
+    setLoading(true);
     notify("info", "Loading leaderboard...");
     fetch("http://localhost:8000/api/leaderboard", { credentials: "include" })
       .then((r) => r.json())
@@ -25,12 +26,27 @@ export default function LeaderboardPage() {
       })
       .catch((e) => {
         notifyError(e?.message || "Failed to load leaderboard.");
-      });
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadLeaderboard();
   }, []);
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Leaderboard</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Leaderboard</h1>
+        <button
+          className="px-3 py-2 border rounded hover:bg-gray-50"
+          onClick={loadLeaderboard}
+          disabled={loading}
+          title="Reload leaderboard"
+        >
+          {loading ? "Loading…" : "Refresh"}
+        </button>
+      </div>
       <div className="text-sm text-gray-600">As of: {asOf}</div>
       <table className="min-w-full border">
         <thead>

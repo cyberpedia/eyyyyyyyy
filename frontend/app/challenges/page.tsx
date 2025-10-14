@@ -21,7 +21,8 @@ export default function ChallengesPage() {
   const [loading, setLoading] = useState(true);
   const { notify, notifyError } = useToast();
 
-  useEffect(() => {
+  const loadChallenges = () => {
+    setLoading(true);
     notify("info", "Loading challenges...");
     fetch("http://localhost:8000/api/challenges?released=1", { credentials: "include" })
       .then((r) => r.json())
@@ -33,13 +34,27 @@ export default function ChallengesPage() {
         notifyError(e?.message || "Failed to load challenges.");
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadChallenges();
   }, []);
 
   if (loading) return <div>Loading...</div>;
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Challenges</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Challenges</h1>
+        <button
+          className="px-3 py-2 border rounded hover:bg-gray-50"
+          onClick={loadChallenges}
+          disabled={loading}
+          title="Reload challenges list"
+        >
+          {loading ? "Loading…" : "Refresh"}
+        </button>
+      </div>
       <ul className="space-y-2">
         {data.map((c) => (
           <li key={c.id} className="border rounded p-4">
