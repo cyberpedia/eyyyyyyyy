@@ -16,13 +16,25 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const idRef = useRef(0);
+  const timeoutsRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+
+  const removeToast = (id: number) => {
+    const timeout = timeoutsRef.current.get(id);
+    if (timeout) {
+      clearTimeout(timeout);
+      timeoutsRef.current.delete(id);
+    }
+    setToasts((ts) => ts.filter((t) => t.id !== id));
+  };
 
   const notify = (type: ToastType, message: string) => {
     const id = ++idRef.current;
     setToasts((ts) => [...ts, { id, type, message }]);
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       setToasts((ts) => ts.filter((t) => t.id !== id));
+      timeoutsRef.current.delete(id);
     }, 4000);
+    timeoutsRef.current.set(id, timeoutId);
   };
 
   const value: ToastContextValue = {
@@ -38,7 +50,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`px-4 py-2 rounded shadow text-white ${
+            className={`px-4 py-2 rounded shadow text-white flex items-center gap-3 ${
               t.type === "success"
                 ? "bg-green-600"
                 : t.type === "error"
@@ -46,7 +58,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 : "bg-gray-700"
             }`}
           >
-            {t.message}
+            <span>{t.message}</span>
+            <button
+              aria-label="Dismiss"
+              className="ml-auto px-2 py-1 rounded bg-black/20 hover:bg-black/30"
+              onClick={() => removeToast(t.id)}
+            >
+              ×
+            </button>
           </div>
         ))}
       </div>

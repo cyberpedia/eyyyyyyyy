@@ -1,26 +1,30 @@
 "use client";
 
 import React, { useState } from "react";
+import { useToast } from "../../components/ToastProvider";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
+  const { notifySuccess, notifyError } = useToast();
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMsg(null);
-    const r = await fetch("http://localhost:8000/api/auth/login", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    if (r.ok) {
-      setMsg("Logged in.");
-    } else {
-      const d = await r.json().catch(() => ({}));
-      setMsg(d.detail || "Login failed.");
+    try {
+      const r = await fetch("http://localhost:8000/api/auth/login", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      if (r.ok) {
+        notifySuccess("Logged in.");
+      } else {
+        const d = await r.json().catch(() => ({}));
+        notifyError(d.detail || "Login failed.");
+      }
+    } catch (err: any) {
+      notifyError(err?.message || "Login failed.");
     }
   };
 
@@ -32,7 +36,6 @@ export default function LoginPage() {
         <input className="border w-full px-3 py-2" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         <button className="bg-blue-600 text-white px-4 py-2 rounded" type="submit">Login</button>
       </form>
-      {msg && <div className="mt-2 text-sm">{msg}</div>}
     </div>
   );
 }

@@ -1,25 +1,29 @@
 "use client";
 
 import React, { useState } from "react";
+import { useToast } from "../../components/ToastProvider";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
+  const { notifySuccess, notifyError } = useToast();
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMsg(null);
-    const r = await fetch("http://localhost:8000/api/auth/register", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, email, password }),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (r.ok) setMsg("Registered and logged in.");
-    else setMsg(d.detail || "Registration failed.");
+    try {
+      const r = await fetch("http://localhost:8000/api/auth/register", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, email, password }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) notifySuccess("Registered and logged in.");
+      else notifyError(d.detail || "Registration failed.");
+    } catch (err: any) {
+      notifyError(err?.message || "Registration failed.");
+    }
   };
 
   return (
@@ -31,7 +35,6 @@ export default function RegisterPage() {
         <input className="border w-full px-3 py-2" placeholder="Password (min 12 chars)" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         <button className="bg-blue-600 text-white px-4 py-2 rounded" type="submit">Register</button>
       </form>
-      {msg && <div className="mt-2 text-sm">{msg}</div>}
     </div>
   );
 }
