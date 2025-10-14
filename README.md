@@ -98,6 +98,13 @@ Ops (Rate limits viewer)
 - Edge rate-limit templates:
   - Cloudflare: infra/cloudflare/rate-limits.md
 
+Ops (Settings)
+- Frontend page: http://localhost:3000/ops/settings
+- Manage UI theme (light/dark) and code highlighting theme (light/dark)
+- Clear persisted filters/preferences stored in browser for Ops pages:
+  - Rate-limits: auto-refresh toggle and interval
+  - Write-ups: status filter, challenge ID, page, page size
+
 Frontend (Next.js)
 - Location: frontend/
 - Minimal scaffold with App Router and Tailwind.
