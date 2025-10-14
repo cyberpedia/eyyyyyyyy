@@ -34,6 +34,7 @@ export default function OpsRateLimitsPage() {
 
   const [data, setData] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [me, setMe] = useState<{ isSuperuser?: boolean; isStaff?: boolean } | null>(null);
 
   const [scope, setScope] = useState("");
   const [userRate, setUserRate] = useState("");
@@ -612,6 +613,88 @@ export default function OpsRateLimitsPage() {
             </table>
           </div>
         )}
+      </section>
+
+      <section>
+        <h2 className="text-lg font-medium mb-2">Presets Editor</h2>
+        {!me?.isSuperuser ? (
+          <div className="text-sm text-gray-600">
+            Presets can be viewed and applied by staff, but only superusers can save changes to the presets configuration.
+          </div>
+        ) : null}
+        <div className="space-y-2">
+          <textarea
+            className="border rounded px-3 py-2 w-full h-56 font-mono text-sm"
+            value={presetEditor}
+            onChange={(e) => setPresetEditor(e.target.value)}
+            placeholder='{"presets": {"competition": {"flag-submit": {"user_rate": "10/min", "ip_rate": "30/min"}}}}'
+          />
+          <div className="flex items-center gap-2">
+            <button
+              className="px-3 py-2 border rounded"
+              onClick={async () => {
+                try {
+                  const payload = JSON.parse(presetEditor || "{}");
+                  const r = await fetch("/api/ops/rate-limits/presets/validate", {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                  });
+                  const d = await r.json().catch(() => ({}));
+                  if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+                  if (d.valid) {
+                    notifySuccess("Presets JSON is valid.");
+                  } else {
+                    notifyError((d.errors || []).join("; ") || "Invalid presets JSON.");
+                  }
+                } catch (e: any) {
+                  notifyError(e?.message || "Validation failed.");
+                }
+              }}
+              title="Validate presets JSON via backend"
+            >
+              Validate
+            </button>
+            <button
+              className={`px-3 py-2 rounded ${me?.isSuperuser ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-700"}`}
+              disabled={!me?.isSuperuser}
+              onClick={async () => {
+                try {
+                  const payload = JSON.parse(presetEditor || "{}");
+                  const r = await fetch("/api/ops/rate-limits/presets", {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                  });
+                  const d = await r.json().catch(() => ({}));
+                  if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+                  notifySuccess("Saved presets.");
+                  await reloadAll(true);
+                } catch (e: any) {
+                  notifyError(e?.message || "Save presets failed.");
+                }
+              }}
+              title="Save presets (superuser only)"
+            >
+              Save Presets
+            </button>
+            <button
+              className="px-3 py-2 border rounded"
+              onClick={async () => {
+                await reloadAll(true);
+                notifySuccess("Reloaded presets.");
+              }}
+              title="Reload presets from server"
+            >
+              Reload
+            </button>
+          </div>
+          <div className="text-xs text-gray-600">
+            Validation checks JSON structure and DRF rate formats (e.g., 10/min). Save requires superuser; staff can preview/apply presets without saving.
+          </div>
+        </div>
       </section>
     </div>
   );

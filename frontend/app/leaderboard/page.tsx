@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useToast } from "../../components/ToastProvider";
+import { computeWsUrl } from "../../components/ws";
 
 type Row = {
   rank: number;
@@ -40,12 +41,7 @@ export default function LeaderboardPage() {
   useEffect(() => {
     let ws: WebSocket | null = null;
     try {
-      const proto = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
-      const host =
-        typeof window !== "undefined" && window.location.hostname === "localhost" && window.location.port === "3000"
-          ? "localhost:8000"
-          : (typeof window !== "undefined" ? window.location.host : "localhost:8000");
-      ws = new WebSocket(`${proto}://${host}/ws/leaderboard`);
+      ws = new WebSocket(computeWsUrl("/ws/leaderboard"));
     } catch (_) {
       ws = null;
     }
