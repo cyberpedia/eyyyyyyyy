@@ -30,17 +30,21 @@ export default function OpsRateLimitsPage() {
   const [me, setMe] = useState<{ isSuperuser?: boolean; isStaff?: boolean } | null>(null);
   const { notify, notifySuccess, notifyError } = useToast();
 
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const reloadAll = async () => {
+
+  const reloadAll = async (silent = false) => {
     try {
       setRefreshing(true);
-      notify("info", "Refreshing rate limits...");
+      if (!silent) notify("info", "Refreshing rate limits...");
       const rlRes = await fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" });
       const rlData = await rlRes.json().catch(() => ({}));
       if (!rlRes.ok) {
         throw new Error(rlData.detail || `Failed to load rate limits (HTTP ${rlRes.status})`);
       }
       setData(rlData);
+      setLastRefreshedAt(new Date().toLocaleString());
 
       const presetsRes = await fetch("http://localhost:8000/api/ops/rate-limits/presets", { credentials: "include" });
       const presetsData = await presetsRes.json().catch(() => ({}));
@@ -51,13 +55,20 @@ export default function OpsRateLimitsPage() {
         notifyError(presetsData.detail || `Failed to load presets (HTTP ${presetsRes.status})`);
       }
 
-      notifySuccess("Refreshed rate limits.");
+      if (!silent) notifySuccess("Refreshed rate limits.");
     } catch (e: any) {
       notifyError(e?.message || "Refresh failed.");
     } finally {
       setRefreshing(false);
     }
   };
+
+  // Auto-refresh effect (60s interval)
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const iv = setInterval(() => reloadAll(true), 60000);
+    return () => clearInterval(iv);
+  }, [autoRefresh]);
 
   // Helpers to compare rates across units by normalizing to tokens per minute
   const rateToPerMinute = (rate?: string | null): number | undefined => {
@@ -118,7 +129,10 @@ export default function OpsRateLimitsPage() {
         }
         return r.json();
       })
-      .then((d) => setData(d))
+      .then((d) => {
+        setData(d);
+        setLastRefreshedAt(new Date().toLocaleString());
+      })
       .catch((e) => {
         setError(e.message);
         notifyError(e.message || "Failed to load rate limits.");
@@ -430,8 +444,19 @@ export default function OpsRateLimitsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Rate Limits (Ops)</h1>
-        <div className="flex items-center gap-2">
+        <div>
+          <h1 className="text-2xl font-semibold">Rate Limits (Ops)</h1>
+          <div className="text-xs text-gray-600">Last refreshed: {lastRefreshedAt || "—"}</div>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+            />
+            Auto-refresh 60s
+          </label>
           {me?.isStaff ? (
             <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">Staff</span>
           ) : (
@@ -439,7 +464,7 @@ export default function OpsRateLimitsPage() {
           )}
           {me?.isSuperuser && <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">Superuser</span>}
           <button
-            onClick={reloadAll}
+            onClick={() => reloadAll(false)}
             className="px-3 py-2 border rounded hover:bg-gray-50"
             disabled={refreshing}
             title="Reload rate limits and presets"
