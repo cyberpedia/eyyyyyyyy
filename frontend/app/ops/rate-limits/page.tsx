@@ -51,6 +51,7 @@ export default function OpsRateLimitsPage() {
   const [confirmClearAllCache, setConfirmClearAllCache] = useState(false);
   const [confirmClearScope, setConfirmClearScope] = useState<string | null>(null);
   const [confirmRemoveScope, setConfirmRemoveScope] = useState<string | null>(null);
+  const [confirmApplyScope, setConfirmApplyScope] = useState<string | null>(null);
   const [applyLoading, setApplyLoading] = useState(false);
 
   const [presetConfig, setPresetConfig] = useState<any | null>(null);
@@ -129,6 +130,14 @@ export default function OpsRateLimitsPage() {
     reloadAll(true);
   }, []);
 
+  // Load current user role (for superuser-only presets saving)
+  useEffect(() => {
+    fetch("/api/users/me", { credentials: "include" })
+      .then(async (r) => (r.ok ? r.json() : {}))
+      .then((d) => setMe(d))
+      .catch(() => {});
+  }, []);
+
   // Auto-refresh effect (configurable interval)
   useEffect(() => {
     if (!autoRefresh) return;
@@ -204,6 +213,41 @@ export default function OpsRateLimitsPage() {
       notifySuccess("Applied dry-run overrides.");
     } catch (e: any) {
       notifyError(e?.message || "Apply from preview failed.");
+    }
+  };
+
+  const doApplyOverride = async (s: string) => {
+    const rates = dryRunOverrides?.[s];
+    if (!rates) {
+      notifyError("No override found for this scope.");
+      return;
+    }
+    try {
+      setApplyLoading(true);
+      const r = await fetch("/api/ops/rate-limits", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+        body: JSON.stringify({ scope: s, user_rate: (rates as any).user_rate, ip_rate: (rates as any).ip_rate }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || `Failed applying override for scope ${s} (HTTP ${r.status})`);
+      await reloadAll(true);
+      setDryRunRows((rows) => rows.filter((row) => row.scope !== s));
+      setDryRunOverrides((ov) => {
+        if (!ov) return ov;
+        const { [s]: _, ...rest } = ov;
+        return Object.keys(rest).length ? rest : null;
+      });
+      setConfirmApplyScope(null);
+      if (!dryRunOverrides || Object.keys(dryRunOverrides).length <= 1) {
+        setDryRunTitle("");
+      }
+      notifySuccess(`Applied override for ${s}.`);
+    } catch (e: any) {
+      notifyError(e?.message || "Apply override failed.");
+    } finally {
+      setApplyLoading(false);
     }
   };
 
@@ -408,6 +452,30 @@ export default function OpsRateLimitsPage() {
         </div>
       )}
 
+      {confirmApplyScope && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded shadow p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-2">Apply override for “{confirmApplyScope}”?</h3>
+            <p className="text-sm text-gray-600 mb-4">This will upsert the override for only this scope.</p>
+            <div className="flex justify-end space-x-2">
+              <button className="px-3 py-2 border rounded" disabled={applyLoading} onClick={() => setConfirmApplyScope(null)}>
+                Cancel
+              </button>
+              <button
+                className={`px-3 py-2 rounded ${applyLoading ? "bg-green-300" : "bg-green-600"} text-white`}
+                disabled={applyLoading}
+                onClick={async () => {
+                  if (!confirmApplyScope) return;
+                  await doApplyOverride(confirmApplyScope);
+                }}
+              >
+                Confirm apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section>
         <h2 className="text-lg font-medium mb-2">Effective Rates</h2>
         <table className="min-w-full border">
@@ -527,6 +595,7 @@ export default function OpsRateLimitsPage() {
                   <th className="p-2 text-left">User (current → new)</th>
                   <th className="p-2 text-left">IP (current → new)</th>
                   <th className="p-2 text-left">Fallback</th>
+                  <th className="p-2 text-left">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -541,6 +610,15 @@ export default function OpsRateLimitsPage() {
                     </td>
                     <td className="p-2 text-xs">
                       {r.user_fallback ? "user:default " : ""}{r.ip_fallback ? "ip:default" : ""}
+                    </td>
+                    <td className="p-2">
+                      <button
+                        className="px-2 py-1 border rounded text-sm"
+                        onClick={() => setConfirmApplyScope(r.scope)}
+                        title="Apply only this override"
+                      >
+                        Apply only this row
+                      </button>
                     </td>
                   </tr>
                 ))}
