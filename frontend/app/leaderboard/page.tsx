@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useToast } from "../../components/ToastProvider";
 
 type Row = {
   rank: number;
@@ -12,13 +13,18 @@ type Row = {
 export default function LeaderboardPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [asOf, setAsOf] = useState<string>("");
+  const { notify, notifyError } = useToast();
 
   useEffect(() => {
+    notify("info", "Loading leaderboard...");
     fetch("http://localhost:8000/api/leaderboard", { credentials: "include" })
       .then((r) => r.json())
       .then((d) => {
         setRows(d.results || []);
         setAsOf(d.as_of || "");
+      })
+      .catch((e) => {
+        notifyError(e?.message || "Failed to load leaderboard.");
       });
   }, []);
 

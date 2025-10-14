@@ -6,11 +6,12 @@ import { useToast } from "../../components/ToastProvider";
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const { notifySuccess, notifyError } = useToast();
+  const { notify, notifySuccess, notifyError } = useToast();
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      notify("info", "Logging in...");
       const r = await fetch("http://localhost:8000/api/auth/login", {
         method: "POST",
         credentials: "include",

@@ -7,11 +7,12 @@ export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { notifySuccess, notifyError } = useToast();
+  const { notify, notifySuccess, notifyError } = useToast();
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      notify("info", "Registering...");
       const r = await fetch("http://localhost:8000/api/auth/register", {
         method: "POST",
         credentials: "include",

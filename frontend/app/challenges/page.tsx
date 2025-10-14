@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useToast } from "../../components/ToastProvider";
 
 type Challenge = {
   id: number;
@@ -18,13 +19,18 @@ type Challenge = {
 export default function ChallengesPage() {
   const [data, setData] = useState<Challenge[]>([]);
   const [loading, setLoading] = useState(true);
+  const { notify, notifyError } = useToast();
 
   useEffect(() => {
+    notify("info", "Loading challenges...");
     fetch("http://localhost:8000/api/challenges?released=1", { credentials: "include" })
       .then((r) => r.json())
       .then((d) => {
         if (Array.isArray(d.results)) setData(d.results);
         else setData(d);
+      })
+      .catch((e) => {
+        notifyError(e?.message || "Failed to load challenges.");
       })
       .finally(() => setLoading(false));
   }, []);
