@@ -114,7 +114,7 @@ export default function OpsWriteUpsPage() {
       page_size: String(pageSize),
     });
     if (challengeId.trim()) qs.set("challenge_id", challengeId.trim());
-    fetch(`http://localhost:8000/api/content/writeups?${qs.toString()}`, { credentials: "include" })
+    fetch(`/api/content/writeups?${qs.toString()}`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => {
         setRows(d.results || []);
@@ -134,8 +134,9 @@ export default function OpsWriteUpsPage() {
   // Staff-only guard: redirect non-staff to login
   const router = useRouter();
   useEffect(() => {
-    fetch("http://localhost:8000/api/users/me", { credentials: "include" })
+    fetch("/api/users/me", { credentials: "include" })
       .then(async (r) => (r.ok ? r.json() : {}))
+     r.json() : {}))
       .then((d) => {
         if (!d.isStaff) router.push("/login");
       })
@@ -144,7 +145,7 @@ export default function OpsWriteUpsPage() {
   const moderate = async (id: number, action: "approve" | "reject") => {
     try {
       const notes = notesById[id] || "";
-      const r = await fetch(`http://localhost:8000/api/content/writeups/${id}/moderate`, {
+      const r = await fetch(`/api/content/writeups/${id}/moderate`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
@@ -163,7 +164,7 @@ export default function OpsWriteUpsPage() {
     setAuditLoading(true);
     setAuditOpenFor(id);
     try {
-      const r = await fetch(`http://localhost:8000/api/content/writeups/${id}/audit`, {
+      const r = await fetch(`/api/content/writeups/${id}/audit`, {
         credentials: "include",
       });
       const d = await r.json().catch(() => ({}));

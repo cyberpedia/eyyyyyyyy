@@ -12,7 +12,7 @@ export default function OpsSettingsPage() {
 
   // Staff-only guard: redirect non-staff to login
   useEffect(() => {
-    fetch("http://localhost:8000/api/users/me", { credentials: "include" })
+    fetch("/api/users/me", { credentials: "include" })
       .then(async (r) => (r.ok ? r.json() : {}))
       .then((d) => {
         if (!d.isStaff) router.push("/login");

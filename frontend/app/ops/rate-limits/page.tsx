@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useToast } from "../../../components/ToastProvider";
+import { computeDryRunRows } from "../../../components/ratelimits";
 
 type RateDefaults = Record<string, string>;
 type DbOverride = { scope: string; user_rate: string; ip_rate: string; updated_at: string };
@@ -151,80 +152,14 @@ export default function OpsRateLimitsPage() {
     return () => clearInterval(iv);
   }, [autoRefresh, autoRefreshInterval, lastRefreshedTs]);
 
-  // Helpers to compare rates across units by normalizing to tokens per minute
-  const rateToPerMinute = (rate?: string | null): number | undefined => {
-    if (!rate) return undefined;
-    const m = rate.match(/^(\d+)\/(sec|second|min|minute|hour|day)$/);
-    if (!m) return undefined;
-    const n = parseInt(m[1], 10);
-    const unit = m[2];
-    switch (unit) {
-      case "sec":
-      case "second":
-        return n * 60;
-      case "min":
-      case "minute":
-        return n;
-      case "hour":
-        return n / 60;
-      case "day":
-        return n / (60 * 24);
-      default:
-        return undefined;
-    }
-  };
-
+  // Compute dry-run rows using shared helpers
   const dryRunCompute = (overrides: Record<string, { user_rate: string; ip_rate: string }>) => {
     if (!data) return;
-    const rows: DryRow[] = [];
     const defaults = data.defaults || {};
     const effective = data.effective || {};
-    for (const [sc, rates] of Object.entries(overrides)) {
-      const current_user = (effective[sc]?.user_rate as string | undefined) ?? (defaults[sc] as string | undefined);
-      const current_ip = (effective[sc]?.ip_rate as string | undefined) ?? (defaults[`${sc}-ip`] as string | undefined);
-      const override_user_blank = (rates.user_rate ?? "") === "";
-      const override_ip_blank = (rates.ip_rate ?? "") === "";
-      const new_user = override_user_blank ? (defaults[sc] as string | undefined) : (rates.user_rate as string);
-      const new_ip = override_ip_blank ? (defaults[`${sc}-ip`] as string | undefined) : (rates.ip_rate as string);
-
-      const cur_user_pm = rateToPerMinute(current_user);
-      const new_user_pm = rateToPerMinute(new_user);
-      const cur_ip_pm = rateToPerMinute(current_ip);
-      const new_ip_pm = rateToPerMinute(new_ip);
-
-      const user_changed = (new_user ?? "") !== (current_user ?? "");
-      const ip_changed = (new_ip ?? "") !== (current_ip ?? "");
-      const user_dir: "up" | "down" | "same" =
-        !user_changed || cur_user_pm === undefined || new_user_pm === undefined
-          ? "same"
-          : new_user_pm > cur_user_pm
-          ? "up"
-          : new_user_pm < cur_user_pm
-          ? "down"
-          : "same";
-      const ip_dir: "up" | "down" | "same" =
-        !ip_changed || cur_ip_pm === undefined || new_ip_pm === undefined
-          ? "same"
-          : new_ip_pm > cur_ip_pm
-          ? "up"
-          : new_ip_pm < cur_ip_pm
-          ? "down"
-          : "same";
-
-      rows.push({
-        scope: sc,
-        current_user_rate: current_user,
-        current_ip_rate: current_ip,
-        new_user_rate: new_user,
-        new_ip_rate: new_ip,
-        changed_user: user_changed,
-        changed_ip: ip_changed,
-        user_direction: user_dir,
-        ip_direction: ip_dir,
-        user_fallback: override_user_blank,
-        ip_fallback: override_ip_blank,
-      });
-    }
+    // Lazy import to avoid client bundling conflicts if needed
+    const { computeDryRunRows } = require("../../../components/ratelimits");
+    const rows: DryRow[] = computeDryRunRows(effective as any, defaults as any, overrides as any);
     setDryRunRows(rows);
     setDryRunOverrides(overrides);
   };
