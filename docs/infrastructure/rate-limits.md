@@ -20,7 +20,10 @@ This project applies rate limiting at two layers:
   - Backend: GET/POST /api/ops/rate-limits (staff-only)
 - Presets configuration:
   - File: backend/config/rate_limit_presets.json (checked-in; editable via Ops UI)
-  - API: GET/POST /api/ops/rate-limits/presets (staff-only)
+  - API:
+    - GET /api/ops/rate-limits/presets (staff-only)
+    - POST /api/ops/rate-limits/presets (superuser-only; saves presets file)
+    - POST /api/ops/rate-limits/presets/validate (staff-only; returns {valid, errors})
 
 2) Edge-level (Ingress/Proxy)
 - NGINX Ingress (Kubernetes)

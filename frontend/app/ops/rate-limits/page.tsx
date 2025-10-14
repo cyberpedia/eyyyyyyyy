@@ -301,127 +301,101 @@ export default function OpsRateLimitsPage() {
         </p>
       </section>
 
-      <section>
-        <h2 className="text-lg font-medium mb-2">Presets Editor</h2>
-        <p className="text-xs text-gray-600 mb-2">
-          Edit the presets JSON and save. Structure: {"{ presets: { ... }, env_presets: { ... } }"}.
-        </p>
-        <textarea
-          className="border w-full h-64 p-3 font-mono text-sm"
-          value={presetEditor}
-          onChange={(e) => setPresetEditor(e.target.value)}
-        />
-        <div className="mt-2 space-x-2">
-          <button
-            className="px-3 py-2 border rounded"
-            onClick={() => {
-              setMsg(null);
-              setError(null);
-              try {
-                const parsed = JSON.parse(presetEditor);
-                const errors: string[] = [];
-                const checkMap = (m: any) => {
-                  if (typeof m !== "object" || m === null) return ["not an object"];
-                  const errs: string[] = [];
-                  for (const [scope, rates] of Object.entries(m)) {
-                    if (typeof rates !== "object" || rates === null) {
-                      errs.push(`scope ${scope}: value must be object`);
-                      continue;
-                    }
-                    const ur = (rates as any).user_rate ?? "";
-                    const ir = (rates as any).ip_rate ?? "";
-                    if (typeof ur !== "string" || typeof ir !== "string") {
-                      errs.push(`scope ${scope}: user_rate/ip_rate must be strings`);
-                      continue;
-                    }
-                    const re = /^\\d+\\/(sec|second|min|minute|hour|day)$/;
-                    if (ur !== "" && !re.test(ur)) errs.push(`scope ${scope}: invalid user_rate '${ur}'`);
-                    if (ir !== "" && !re.test(ir)) errs.push(`scope ${scope}: invalid ip_rate '${ir}'`);
+      {me?.isSuperuser ? (
+        <section>
+          <h2 className="text-lg font-medium mb-2">Presets Editor</h2>
+          <p className="text-xs text-gray-600 mb-2">
+            Edit the presets JSON and save. Structure: {"{ presets: { ... }, env_presets: { ... } }"}.
+          </p>
+          <textarea
+            className="border w-full h-64 p-3 font-mono text-sm"
+            value={presetEditor}
+            onChange={(e) => setPresetEditor(e.target.value)}
+          />
+          <div className="mt-2 space-x-2">
+            <button
+              className="px-3 py-2 border rounded"
+              onClick={async () => {
+                setMsg(null);
+                setError(null);
+                try {
+                  const parsed = JSON.parse(presetEditor);
+                  const r = await fetch("http://localhost:8000/api/ops/rate-limits/presets/validate", {
+                    method: "POST",
+                    credentials: "include",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "X-CSRFToken": getCsrfToken(),
+                    },
+                    body: JSON.stringify(parsed),
+                  });
+                  const d = await r.json().catch(() => ({}));
+                  if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+                  if (d.valid) {
+                    setMsg("Valid presets JSON.");
+                  } else {
+                    setError(`Invalid presets: ${(d.errors || []).join("; ")}`);
                   }
-                  return errs;
-                };
-                if (!parsed.presets || typeof parsed.presets !== "object") {
-                  errors.push("presets must be an object");
-                } else {
-                  for (const [name, m] of Object.entries(parsed.presets)) {
-                    errors.push(...checkMap(m));
-                  }
+                } catch (e: any) {
+                  setError(e.message || "Invalid JSON.");
                 }
-                if (!parsed.env_presets || typeof parsed.env_presets !== "object") {
-                  errors.push("env_presets must be an object");
-                } else {
-                  for (const [name, m] of Object.entries(parsed.env_presets)) {
-                    errors.push(...checkMap(m));
-                  }
-                }
-                if (errors.length === 0) {
-                  setMsg("Valid presets JSON.");
-                } else {
-                  setError(`Invalid presets: ${errors.join("; ")}`);
-                }
-              } catch (e: any) {
-                setError("Invalid JSON.");
-              }
-            }}
-          >
-            Validate
-          </button>
-          <button
-            className="px-3 py-2 border rounded"
-            onClick={() => {
-              const scopes = Object.keys(data?.effective || {});
-              const skeleton = {
-                presets: {
-                  custom: Object.fromEntries(
-                    scopes.map((s) => [s, { user_rate: "", ip_rate: "" }])
-                  ),
-                },
-                env_presets: {
-                  dev: Object.fromEntries(scopes.map((s) => [s, { user_rate: "", ip_rate: "" }])),
-                  staging: Object.fromEntries(scopes.map((s) => [s, { user_rate: "", ip_rate: "" }])),
-                  prod: Object.fromEntries(scopes.map((s) => [s, { user_rate: "", ip_rate: "" }])),
-                },
-              };
-              setPresetEditor(JSON.stringify(skeleton, null, 2));
-              setMsg("Generated example skeleton.");
-            }}
-          >
-            Generate example
-          </button>
-          <button
-            className={`px-3 py-2 rounded ${me?.isSuperuser ? "bg-indigo-600 text-white" : "bg-gray-300 text-gray-700 cursor-not-allowed"}`}
-            disabled={!me?.isSuperuser}
-            onClick={async () => {
-              setMsg(null);
-              setError(null);
-              try {
-                const parsed = JSON.parse(presetEditor);
-                const r = await fetch("http://localhost:8000/api/ops/rate-limits/presets", {
-                  method: "POST",
-                  credentials: "include",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": getCsrfToken(),
+              }}
+            >
+              Validate
+            </button>
+            <button
+              className="px-3 py-2 border rounded"
+              onClick={() => {
+                const scopes = Object.keys(data?.effective || {});
+                const skeleton = {
+                  presets: {
+                    custom: Object.fromEntries(
+                      scopes.map((s) => [s, { user_rate: "", ip_rate: "" }])
+                    ),
                   },
-                  body: JSON.stringify(parsed),
-                });
-                const d = await r.json().catch(() => ({}));
-                if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
-                setPresetConfig(d);
-                setPresetEditor(JSON.stringify(d, null, 2));
-                setMsg("Saved presets.");
-              } catch (e: any) {
-                setError(e.message || "Save presets failed.");
-              }
-            }}
-          >
-            Save presets
-          </button>
-          {!me?.isSuperuser && (
-            <span className="text-xs text-gray-600">Only superusers can save presets.</span>
-          )}
-        </div>
-      </section>
+                  env_presets: {
+                    dev: Object.fromEntries(scopes.map((s) => [s, { user_rate: "", ip_rate: "" }])),
+                    staging: Object.fromEntries(scopes.map((s) => [s, { user_rate: "", ip_rate: "" }])),
+                    prod: Object.fromEntries(scopes.map((s) => [s, { user_rate: "", ip_rate: "" }])),
+                  },
+                };
+                setPresetEditor(JSON.stringify(skeleton, null, 2));
+                setMsg("Generated example skeleton.");
+              }}
+            >
+              Generate example
+            </button>
+            <button
+              className="px-3 py-2 rounded bg-indigo-600 text-white"
+              onClick={async () => {
+                setMsg(null);
+                setError(null);
+                try {
+                  const parsed = JSON.parse(presetEditor);
+                  const r = await fetch("http://localhost:8000/api/ops/rate-limits/presets", {
+                    method: "POST",
+                    credentials: "include",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "X-CSRFToken": getCsrfToken(),
+                    },
+                    body: JSON.stringify(parsed),
+                  });
+                  const d = await r.json().catch(() => ({}));
+                  if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+                  setPresetConfig(d);
+                  setPresetEditor(JSON.stringify(d, null, 2));
+                  setMsg("Saved presets.");
+                } catch (e: any) {
+                  setError(e.message || "Save presets failed.");
+                }
+              }}
+            >
+              Save presets
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section>
         <h2 className="text-lg font-medium mb-2">Update Override</h2>

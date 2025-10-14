@@ -15,6 +15,7 @@ from .views import (
     RateLimitsStatusView,
     RateLimitsCacheView,
     RateLimitPresetsView,
+    RateLimitPresetsValidateView,
 )
 
 urlpatterns = [
@@ -32,4 +33,5 @@ urlpatterns = [
     path("ops/rate-limits", RateLimitsStatusView.as_view()),
     path("ops/rate-limits/cache", RateLimitsCacheView.as_view()),
     path("ops/rate-limits/presets", RateLimitPresetsView.as_view()),
+    path("ops/rate-limits/presets/validate", RateLimitPresetsValidateView.as_view()),
 ]

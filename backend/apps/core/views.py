@@ -387,3 +387,70 @@ class RateLimitPresetsView(APIView):
             json.dump(cfg, f, indent=2)
 
         return Response(cfg, status=status.HTTP_200_OK)
+
+
+class RateLimitPresetsValidateView(APIView):
+    """
+    Validate presets payload (structure + rate formats). Staff-only.
+    Returns detailed errors for use in Ops UI.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request):
+        errors = []
+
+        try:
+            cfg = dict(request.data)
+        except Exception:
+            return Response({"valid": False, "errors": ["invalid JSON"]}, status=status.HTTP_400_BAD_REQUEST)
+
+        from rest_framework.throttling import SimpleRateThrottle
+
+        parser = SimpleRateThrottle()
+
+        def ok(rate: str) -> bool:
+            return rate == "" or parser.parse_rate(rate) is not None
+
+        if "presets" not in cfg or not isinstance(cfg["presets"], dict):
+            errors.append("presets must be an object")
+        else:
+            for name, scopes_map in cfg["presets"].items():
+                if not isinstance(scopes_map, dict):
+                    errors.append(f"preset '{name}' must be an object mapping scopes")
+                    continue
+                for scope, rates in scopes_map.items():
+                    if not isinstance(rates, dict):
+                        errors.append(f"preset '{name}': scope '{scope}' must have object with user_rate/ip_rate")
+                        continue
+                    ur = rates.get("user_rate", "")
+                    ir = rates.get("ip_rate", "")
+                    if not isinstance(ur, str) or not isinstance(ir, str):
+                        errors.append(f"preset '{name}': scope '{scope}' user_rate/ip_rate must be strings")
+                        continue
+                    if not ok(ur):
+                        errors.append(f"preset '{name}': scope '{scope}' invalid user_rate '{ur}'")
+                    if not ok(ir):
+                        errors.append(f"preset '{name}': scope '{scope}' invalid ip_rate '{ir}'")
+
+        if "env_presets" not in cfg or not isinstance(cfg["env_presets"], dict):
+            errors.append("env_presets must be an object")
+        else:
+            for env, scopes_map in cfg["env_presets"].items():
+                if not isinstance(scopes_map, dict):
+                    errors.append(f"env '{env}' must be an object mapping scopes")
+                    continue
+                for scope, rates in scopes_map.items():
+                    if not isinstance(rates, dict):
+                        errors.append(f"env '{env}': scope '{scope}' must have object with user_rate/ip_rate")
+                        continue
+                    ur = rates.get("user_rate", "")
+                    ir = rates.get("ip_rate", "")
+                    if not isinstance(ur, str) or not isinstance(ir, str):
+                        errors.append(f"env '{env}': scope '{scope}' user_rate/ip_rate must be strings")
+                        continue
+                    if not ok(ur):
+                        errors.append(f"env '{env}': scope '{scope}' invalid user_rate '{ur}'")
+                    if not ok(ir):
+                        errors.append(f"env '{env}': scope '{scope}' invalid ip_rate '{ir}'")
+
+        return Response({"valid": len(errors) == 0, "errors": errors})

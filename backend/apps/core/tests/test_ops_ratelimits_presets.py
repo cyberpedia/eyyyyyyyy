@@ -67,3 +67,36 @@ class OpsRateLimitPresetsTests(TestCase):
         bad = {"presets": {"p": {"flag-submit": {"user_rate": "bad", "ip_rate": "1/min"}}}, "env_presets": {}}
         r = self.client.post("/api/ops/rate-limits/presets", bad, format="json")
         self.assertEqual(r.status_code, 400)
+
+    def test_validate_presets_endpoint(self):
+        # anon rejected
+        anon = APIClient()
+        ra = anon.post("/api/ops/rate-limits/presets/validate", {"presets": {}, "env_presets": {}}, format="json")
+        self.assertEqual(ra.status_code, 403)
+
+        # staff can validate valid config
+        good = {
+            "presets": {
+                "competition": {
+                    "flag-submit": {"user_rate": "10/min", "ip_rate": "30/min"},
+                    "login": {"user_rate": "", "ip_rate": "5/min"},
+                }
+            },
+            "env_presets": {
+                "prod": {
+                    "flag-submit": {"user_rate": "10/min", "ip_rate": "30/min"},
+                    "login": {"user_rate": "", "ip_rate": "5/min"},
+                }
+            },
+        }
+        r = self.client.post("/api/ops/rate-limits/presets/validate", good, format="json")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.data["valid"])
+        self.assertEqual(r.data["errors"], [])
+
+        # invalid config returns errors
+        bad = {"presets": {"p": {"flag-submit": {"user_rate": "bad", "ip_rate": "1/min"}}}, "env_presets": {}}
+        r2 = self.client.post("/api/ops/rate-limits/presets/validate", bad, format="json")
+        self.assertEqual(r2.status_code, 200)
+        self.assertFalse(r2.data["valid"])
+        self.assertTrue(len(r2.data["errors"]) >= 1)
