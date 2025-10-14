@@ -13,7 +13,7 @@ export default function RegisterPage() {
     e.preventDefault();
     try {
       notify("info", "Registering...");
-      const r = await fetch("http://localhost:8000/api/auth/register", {
+      const r = await fetch("/api/auth/register", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

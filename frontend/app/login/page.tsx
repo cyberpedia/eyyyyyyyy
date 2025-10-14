@@ -12,7 +12,7 @@ export default function LoginPage() {
     e.preventDefault();
     try {
       notify("info", "Logging in...");
-      const r = await fetch("http://localhost:8000/api/auth/login", {
+      const r = await fetch("/api/auth/login", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

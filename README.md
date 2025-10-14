@@ -108,7 +108,8 @@ Ops (Settings)
 Frontend (Next.js)
 - Location: frontend/
 - Minimal scaffold with App Router and Tailwind.
-- Talks to backend at http://localhost:8000/api
+- Dev proxy: Next.js rewrites /api/* to the Django backend (http://localhost:8000/api). Use relative paths like /api/auth/login so session cookies stay on the frontend origin and are available to server-side guards.
+- Server-side guard: all /ops pages are protected by a server layout that checks /api/users/me before rendering and redirects to /login if not staff.
 - Leaderboard page connects to WebSocket for live updates.
 
 CI
