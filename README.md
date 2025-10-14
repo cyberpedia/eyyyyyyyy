@@ -13,6 +13,9 @@ Quickstart (dev)
 - Seed demo data (categories + sample challenge):
   - docker compose exec backend python manage.py migrate
   - docker compose exec backend python manage.py seed_demo
+- Create admin (interactive or flags):
+  - docker compose exec backend python manage.py create_admin
+  - or docker compose exec backend python manage.py create_admin --username admin --email you@example.com --password 'strong_password_here'
 
 Docs
 - System Design v1.1: docs/system-design.md
@@ -22,6 +25,8 @@ Docs
 - Kubernetes CRDs (draft):
   - docs/k8s/crds/challenge-template-crd.yaml
   - docs/k8s/crds/challenge-instance-crd.yaml
+- NGINX Ingress rate limits (template):
+  - infra/k8s/ingress/nginx-ingress-rate-limits.yaml
 
 Backend (Django)
 - Location: backend/

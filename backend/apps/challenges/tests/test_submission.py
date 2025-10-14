@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
-from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -49,9 +48,8 @@ class SubmissionFlowTests(TestCase):
 
         # Team score should reflect both events
         self.team.refresh_from_db()
-        total = ScoreEvent.objects.filter(team=self.team).aggregate_total = sum(
-            e.delta for e in ScoreEvent.objects.filter(team=self.team)
-        )
+        expected_total = sum(e.delta for e in ScoreEvent.objects.filter(team=self.team))
+        self.assertEqual(self.team.score, expected_total)
         self.assertEqual(self.team.score, 500 + round(500 * 0.10))
 
     def test_flag_submit_throttle(self):
