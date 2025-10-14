@@ -58,6 +58,42 @@ export default function OpsWriteUpsPage() {
   const [hasNext, setHasNext] = useState<boolean>(false);
   const [hasPrev, setHasPrev] = useState<boolean>(false);
 
+  // Persist filters/pagination in localStorage
+  const STATUS_KEY = "opsWriteUps:status";
+  const CH_ID_KEY = "opsWriteUps:challengeId";
+  const PAGE_KEY = "opsWriteUps:page";
+  const PAGE_SIZE_KEY = "opsWriteUps:pageSize";
+
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      const s = window.localStorage.getItem(STATUS_KEY);
+      if (s && (s === "pending" || s === "approved" || s === "rejected")) setStatus(s as any);
+      const cid = window.localStorage.getItem(CH_ID_KEY);
+      if (cid !== null) setChallengeId(cid);
+      const ps = window.localStorage.getItem(PAGE_SIZE_KEY);
+      if (ps) {
+        const n = parseInt(ps, 10);
+        if ([10, 20, 50].includes(n)) setPageSize(n);
+      }
+      const pg = window.localStorage.getItem(PAGE_KEY);
+      if (pg) {
+        const n = parseInt(pg, 10);
+        if (!isNaN(n) && n >= 1) setPage(n);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem(STATUS_KEY, status);
+      window.localStorage.setItem(CH_ID_KEY, challengeId);
+      window.localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+      window.localStorage.setItem(PAGE_KEY, String(page));
+    } catch {}
+  }, [status, challengeId, pageSize, page]);
+
   const [auditOpenFor, setAuditOpenFor] = useState<number | null>(null);
   const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);

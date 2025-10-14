@@ -194,3 +194,33 @@ class WriteUpAuditLogView(APIView):
                 }
             )
         return Response({"results": results})
+
+
+class WriteUpAuditLogCsvView(APIView):
+    """
+    Staff-only CSV export of audit trail for a write-up.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request, id: int):
+        import csv
+        from io import StringIO
+        logs = AuditLog.objects.filter(target_type="writeup", target_id=str(id)).order_by("-timestamp")
+        buf = StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["timestamp", "actor_username", "action", "notes", "prev_status", "new_status", "hash", "prev_hash"])
+        for l in logs:
+            writer.writerow([
+                l.timestamp.isoformat(),
+                getattr(l.actor_user, "username", "") if l.actor_user_id else "",
+                l.action,
+                (l.data or {}).get("notes", ""),
+                (l.data or {}).get("prev_status", ""),
+                (l.data or {}).get("new_status", ""),
+                l.hash,
+                l.prev_hash,
+            ])
+        from django.http import HttpResponse
+        resp = HttpResponse(buf.getvalue(), content_type="text/csv")
+        resp["Content-Disposition"] = f'attachment; filename="writeup-{id}-audit.csv"'
+        return resp

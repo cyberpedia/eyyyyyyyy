@@ -2,6 +2,7 @@ import "./globals.css";
 import React from "react";
 import { ToastProvider } from "../components/ToastProvider";
 import HighlightThemeToggle from "../components/HighlightThemeToggle";
+import UiThemeToggle from "../components/UiThemeToggle";
 
 export const metadata = {
   title: "CTF Platform",
@@ -22,7 +23,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <a href="/ops/rate-limits" className="hover:underline">Ops Rate Limits</a>
                 <a href="/ops/writeups" className="hover:underline">Ops Write-ups</a>
               </nav>
-              <div className="ml-6">
+              <div className="ml-6 flex items-center gap-4">
+                <UiThemeToggle />
                 <HighlightThemeToggle />
               </div>
             </div>

@@ -63,6 +63,8 @@ Content and Moderation
     - POST http://localhost:8000/api/content/challenges/<challenge_id>/writeups (auth required; CSRF)
     - GET http://localhost:8000/api/content/writeups?status=pending (staff-only)
     - POST http://localhost:8000/api/content/writeups/<id>/moderate (staff-only; body: {action: approve|reject, notes})
+    - GET http://localhost:8000/api/content/writeups/<id>/audit (staff-only; JSON audit trail)
+    - GET http://localhost:8000/api/content/writeups/<id>/audit.csv (staff-only; CSV export)
   - Bonus points:
     - Approved write-ups award WRITEUP_BONUS_POINTS to the author’s team (default 25; configurable via env).
 - Frozen challenge snapshots:

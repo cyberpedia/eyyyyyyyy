@@ -63,3 +63,24 @@ class WriteUpModerationTests(TestCase):
         payload = resp2.json()
         self.assertIn("results", payload)
         self.assertIn("count", payload)
+
+    def test_audit_csv_export_staff_only(self):
+        # create write-up
+        self.client.login(username="u1", password="pass123456789")
+        resp = self.client.post(
+            "/api/content/challenges/%d/writeups" % self.challenge.id,
+            {"title": "My writeup", "content_md": "Steps..."},
+        )
+        wid = resp.json()["id"]
+        self.client.logout()
+
+        # anonymous forbidden
+        resp_csv_anon = self.client.get(f"/api/content/writeups/{wid}/audit.csv")
+        self.assertEqual(resp_csv_anon.status_code, 403)
+
+        # staff allowed
+        self.client.login(username="staff", password="pass123456789")
+        resp_csv = self.client.get(f"/api/content/writeups/{wid}/audit.csv")
+        self.assertEqual(resp_csv.status_code, 200)
+        self.assertTrue(resp_csv["Content-Type"].startswith("text/csv"))
+        self.assertIn("timestamp,actor_username,action,notes,prev_status,new_status,hash,prev_hash", resp_csv.content.decode("utf-8").splitlines()[0])
