@@ -55,6 +55,8 @@ Ops (Rate limits viewer)
 - Backend API:
   - GET http://localhost:8000/api/ops/rate-limits → view defaults, DB overrides, effective values, cache state
   - POST http://localhost:8000/api/ops/rate-limits → upsert override {scope, user_rate, ip_rate}; blank values clear override. CSRF required.
+  - DELETE http://localhost:8000/api/ops/rate-limits?scope=<scope> → remove override row for scope. CSRF required.
+  - POST http://localhost:8000/api/ops/rate-limits/cache → clear all rate-limit caches (or pass {scope} to clear one). CSRF required.
 - Edge rate-limit templates:
   - Cloudflare: infra/cloudflare/rate-limits.md
 

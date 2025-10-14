@@ -59,3 +59,21 @@ class OpsRateLimitsTests(TestCase):
         )
         self.assertEqual(r.status_code, 400)
         self.assertIn("invalid user_rate", r.data["detail"])
+
+    def test_delete_override(self):
+        RateLimitConfig.objects.update_or_create(scope="flag-submit", defaults={"user_rate": "2/min", "ip_rate": "3/min"})
+        cache.set("ratelimit:flag-submit:user", "2/min", 60)
+        cache.set("ratelimit:flag-submit:ip", "3/min", 60)
+        r = self.client.delete("/api/ops/rate-limits?scope=flag-submit", format="json")
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(RateLimitConfig.objects.filter(scope="flag-submit").exists())
+        self.assertIsNone(cache.get("ratelimit:flag-submit:user"))
+        self.assertIsNone(cache.get("ratelimit:flag-submit:ip"))
+
+    def test_clear_cache(self):
+        cache.set("ratelimit:login:user", "5/min", 60)
+        cache.set("ratelimit:login:ip", "5/min", 60)
+        r = self.client.post("/api/ops/rate-limits/cache", {}, format="json")
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNone(cache.get("ratelimit:login:user"))
+        self.assertIsNone(cache.get("ratelimit:login:ip"))

@@ -234,7 +234,7 @@ class RateLimitsStatusView(APIView):
         if not _validate(ip_rate):
             return Response({"detail": "invalid ip_rate format"}, status=status.HTTP_400_BAD_REQUEST)
 
-        obj, _created = RateLimitConfig.objects.update_or_create(
+        RateLimitConfig.objects.update_or_create(
             scope=scope, defaults={"user_rate": user_rate, "ip_rate": ip_rate}
         )
 
@@ -243,3 +243,34 @@ class RateLimitsStatusView(APIView):
         cache.set(f"ratelimit:{scope}:ip", ip_rate or "", 60)
 
         return Response(self._payload(), status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        """
+        Delete a RateLimitConfig row by scope.
+        Accepts scope via JSON body or query param (?scope=...).
+        """
+        scope = (request.data.get("scope") or request.query_params.get("scope") or "").strip()
+        if not scope:
+            return Response({"detail": "scope required"}, status=status.HTTP_400_BAD_REQUEST)
+        RateLimitConfig.objects.filter(scope=scope).delete()
+        cache.delete(f"ratelimit:{scope}:user")
+        cache.delete(f"ratelimit:{scope}:ip")
+        return Response(self._payload(), status=status.HTTP_200_OK)
+
+
+class RateLimitsCacheView(APIView):
+    """
+    Clear ratelimit caches. Optionally pass a scope to clear only that scope's entries.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request):
+        scope = (request.data.get("scope") or "").strip()
+        if scope:
+            cache.delete(f"ratelimit:{scope}:user")
+            cache.delete(f"ratelimit:{scope}:ip")
+        else:
+            cache.clear()
+        # Return current payload
+        view = RateLimitsStatusView()
+        return Response(view._payload(), status=status.HTTP_200_OK)

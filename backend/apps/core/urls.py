@@ -13,6 +13,7 @@ from .views import (
     TeamJoinView,
     TeamTransferView,
     RateLimitsStatusView,
+    RateLimitsCacheView,
 )
 
 urlpatterns = [
@@ -28,4 +29,5 @@ urlpatterns = [
     path("teams/<int:id>/join", TeamJoinView.as_view()),
     path("teams/<int:id>/transfer", TeamTransferView.as_view()),
     path("ops/rate-limits", RateLimitsStatusView.as_view()),
+    path("ops/rate-limits/cache", RateLimitsCacheView.as_view()),
 ]

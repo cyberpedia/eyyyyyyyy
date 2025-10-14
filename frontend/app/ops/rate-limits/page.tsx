@@ -69,6 +69,54 @@ export default function OpsRateLimitsPage() {
     }
   };
 
+  const clearCache = async () => {
+    setMsg(null);
+    setError(null);
+    try {
+      const r = await fetch("http://localhost:8000/api/ops/rate-limits/cache", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+        },
+        body: JSON.stringify({}),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setData(d);
+      setMsg("Cleared cache.");
+    } catch (e: any) {
+      setError(e.message || "Clear cache failed.");
+    }
+  };
+
+  const populateEdit = (s: string, ur: string, ir: string) => {
+    setScope(s);
+    setUserRate(ur || "");
+    setIpRate(ir || "");
+  };
+
+  const removeOverride = async (s: string) => {
+    setMsg(null);
+    setError(null);
+    try {
+      const r = await fetch(`http://localhost:8000/api/ops/rate-limits?scope=${encodeURIComponent(s)}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: {
+          "X-CSRFToken": getCsrfToken(),
+        },
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setData(d);
+      setMsg(`Removed override for ${s}.`);
+    } catch (e: any) {
+      setError(e.message || "Remove override failed.");
+    }
+  };
+
   if (error) {
     return <div className="text-red-700">Error: {error}. Ensure you are logged in and have staff privileges.</div>;
   }
@@ -78,7 +126,12 @@ export default function OpsRateLimitsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Rate Limits (Ops)</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Rate Limits (Ops)</h1>
+        <button onClick={clearCache} className="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">
+          Clear all cache
+        </button>
+      </div>
 
       <section>
         <h2 className="text-lg font-medium mb-2">Update Override</h2>
@@ -156,6 +209,7 @@ export default function OpsRateLimitsPage() {
                 <th className="p-2 text-left">User rate</th>
                 <th className="p-2 text-left">IP rate</th>
                 <th className="p-2 text-left">Updated</th>
+                <th className="p-2 text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -165,6 +219,20 @@ export default function OpsRateLimitsPage() {
                   <td className="p-2">{r.user_rate || "-"}</td>
                   <td className="p-2">{r.ip_rate || "-"}</td>
                   <td className="p-2">{new Date(r.updated_at).toLocaleString()}</td>
+                  <td className="p-2 space-x-2">
+                    <button
+                      className="px-2 py-1 border rounded hover:bg-gray-50"
+                      onClick={() => populateEdit(r.scope, r.user_rate, r.ip_rate)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="px-2 py-1 border rounded hover:bg-red-50 text-red-700"
+                      onClick={() => removeOverride(r.scope)}
+                    >
+                      Remove
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
