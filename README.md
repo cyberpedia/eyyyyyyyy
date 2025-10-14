@@ -55,9 +55,12 @@ Backend (Django)
 Content and Moderation
 - Write-ups:
   - Submit write-ups on challenge pages; they enter a moderation queue.
+  - Rendered as Markdown on the challenge page (sanitized).
+  - Ops UI (staff): http://localhost:3000/ops/writeups for moderation (approve/reject with notes).
   - API:
     - GET http://localhost:8000/api/content/challenges/<challenge_id>/writeups?status=approved
     - POST http://localhost:8000/api/content/challenges/<challenge_id>/writeups (auth required; CSRF)
+    - GET http://localhost:8000/api/content/writeups?status=pending (staff-only)
     - POST http://localhost:8000/api/content/writeups/<id>/moderate (staff-only; body: {action: approve|reject, notes})
   - Bonus points:
     - Approved write-ups award WRITEUP_BONUS_POINTS to the author’s team (default 25; configurable via env).

@@ -18,7 +18,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <nav className="space-x-4">
                 <a href="/challenges" className="hover:underline">Challenges</a>
                 <a href="/leaderboard" className="hover:underline">Leaderboard</a>
-                <a href="/ops/rate-limits" className="hover:underline">Ops</a>
+                <a href="/ops/rate-limits" className="hover:underline">Ops Rate Limits</a>
+                <a href="/ops/writeups" className="hover:underline">Ops Write-ups</a>
               </nav>
             </div>
           </header>

@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { useToast } from "../../../components/ToastProvider";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
 
 type ChallengeDetail = {
   id: number;
@@ -106,7 +108,7 @@ export default function ChallengeDetailPage({ params }: { params: { id: string }
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">{challenge.title}</h1>
       <div className="prose max-w-none">
-        <p>{challenge.description}</p>
+        <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{challenge.description || ""}</ReactMarkdown>
       </div>
 
       <form onSubmit={submitFlag} className="space-y-2">
@@ -131,7 +133,9 @@ export default function ChallengeDetailPage({ params }: { params: { id: string }
                 <div className="text-xs text-gray-600">
                   by {w.username} {w.published_at ? `on ${w.published_at}` : ""}
                 </div>
-                <div className="prose max-w-none mt-2 whitespace-pre-wrap">{w.content_md}</div>
+                <div className="prose max-w-none mt-2 whitespace-pre-wrap">
+                  <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{w.content_md || ""}</ReactMarkdown>
+                </div>
               </li>
             ))}
           </ul>

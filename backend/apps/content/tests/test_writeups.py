@@ -1,6 +1,5 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from django.urls import reverse
 
 from apps.core.models import Team, Membership, ScoreEvent
 from apps.challenges.models import Challenge
@@ -46,3 +45,14 @@ class WriteUpModerationTests(TestCase):
         bonus = ScoreEvent.objects.filter(team=self.team, type=ScoreEvent.TYPE_WRITEUP_BONUS).first()
         self.assertIsNotNone(bonus)
         self.assertEqual(bonus.challenge_id, self.challenge.id)
+
+    def test_admin_list_pending_requires_staff(self):
+        # Anonymous cannot list
+        resp = self.client.get("/api/content/writeups?status=pending")
+        self.assertEqual(resp.status_code, 403)
+
+        # Login as staff and list pending
+        self.client.login(username="staff", password="pass123456789")
+        resp2 = self.client.get("/api/content/writeups?status=pending")
+        self.assertEqual(resp2.status_code, 200)
+        self.assertIn("results", resp2.json())

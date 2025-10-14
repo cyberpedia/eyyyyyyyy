@@ -13,12 +13,16 @@ class ContentPageSerializer(serializers.ModelSerializer):
 
 class WriteUpSerializer(serializers.ModelSerializer):
     username = serializers.SerializerMethodField()
+    challenge_title = serializers.SerializerMethodField()
+    challenge_slug = serializers.SerializerMethodField()
 
     class Meta:
         model = WriteUp
         fields = [
             "id",
             "challenge",
+            "challenge_title",
+            "challenge_slug",
             "user",
             "username",
             "team",
@@ -34,5 +38,17 @@ class WriteUpSerializer(serializers.ModelSerializer):
     def get_username(self, obj):
         try:
             return obj.user.username
+        except Exception:
+            return ""
+
+    def get_challenge_title(self, obj):
+        try:
+            return obj.challenge.title
+        except Exception:
+            return ""
+
+    def get_challenge_slug(self, obj):
+        try:
+            return obj.challenge.slug
         except Exception:
             return ""

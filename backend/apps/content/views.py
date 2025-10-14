@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.http import Http404
 from django.utils import timezone
+from django.conf import settings
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -106,3 +107,22 @@ class WriteUpModerateView(APIView):
             w.save(update_fields=["status", "moderation_notes"])
 
         return Response(WriteUpSerializer(w).data)
+
+
+class WriteUpsAdminListView(APIView):
+    """
+    Staff-only listing of write-ups by status (default pending), optional challenge_id filter.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        status_q = (request.query_params.get("status") or WriteUp.STATUS_PENDING).strip()
+        challenge_id = request.query_params.get("challenge_id")
+        qs = WriteUp.objects.all()
+        if challenge_id:
+            qs = qs.filter(challenge_id=challenge_id)
+        if status_q:
+            qs = qs.filter(status=status_q)
+        qs = qs.order_by("-created_at")
+        data = WriteUpSerializer(qs, many=True).data
+        return Response({"results": data})
