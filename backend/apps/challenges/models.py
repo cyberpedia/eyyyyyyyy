@@ -98,5 +98,35 @@ class Submission(models.Model):
         return f"Sub#{self.id} team={self.team_id} chal={self.challenge_id} correct={self.is_correct}"
 
 
+class ChallengeSnapshot(models.Model):
+    REASON_FREEZE = "freeze"
+    REASON_MODERATION = "moderation"
+    REASON_MANUAL = "manual"
+    REASON_CHOICES = [
+        (REASON_FREEZE, "Freeze"),
+        (REASON_MODERATION, "Moderation"),
+        (REASON_MANUAL, "Manual"),
+    ]
+
+    challenge = models.ForeignKey(Challenge, on_delete=models.CASCADE, related_name="snapshots")
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=220)
+    description = models.TextField()
+    scoring_model = models.CharField(max_length=12)
+    points_min = models.IntegerField()
+    points_max = models.IntegerField()
+    k = models.FloatField()
+    is_dynamic = models.BooleanField()
+    released_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    reason = models.CharField(max_length=16, choices=REASON_CHOICES, default=REASON_MANUAL)
+
+    class Meta:
+        indexes = [models.Index(fields=["challenge", "-created_at"])]
+
+    def __str__(self) -> str:
+        return f"Snapshot {self.id} of {self.challenge_id} ({self.reason})"
+
+
 def verify_flag(challenge: Challenge, submitted_flag: str) -> bool:
     return hmac.compare_digest(hmac_flag(submitted_flag), challenge.flag_hmac)

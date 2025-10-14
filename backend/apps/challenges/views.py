@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.models import Team, Membership, ScoreEvent
-from .models import Challenge, Submission, verify_flag, Category, Tag
+from .models import Challenge, Submission, verify_flag, Category, Tag, ChallengeSnapshot
 from .serializers import (
     ChallengeListItemSerializer,
     ChallengeDetailSerializer,
@@ -178,6 +178,31 @@ class AdminChallengeDetailView(RetrieveUpdateDestroyAPIView):
     serializer_class = ChallengeAdminSerializer
     permission_classes = [permissions.IsAdminUser]
     lookup_field = "id"
+
+
+class AdminChallengeSnapshotView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, id: int):
+        try:
+            c = Challenge.objects.get(id=id)
+        except Challenge.DoesNotExist:
+            raise Http404
+        reason = (request.data.get("reason") or ChallengeSnapshot.REASON_MANUAL).strip()
+        snap = ChallengeSnapshot.objects.create(
+            challenge=c,
+            title=c.title,
+            slug=c.slug,
+            description=c.description,
+            scoring_model=c.scoring_model,
+            points_min=c.points_min,
+            points_max=c.points_max,
+            k=c.k,
+            is_dynamic=c.is_dynamic,
+            released_at=c.released_at,
+            reason=reason if reason in dict(ChallengeSnapshot.REASON_CHOICES) else ChallengeSnapshot.REASON_MANUAL,
+        )
+        return Response({"id": snap.id, "created_at": snap.created_at}, status=status.HTTP_201_CREATED)
 
 
 class LeaderboardView(APIView):

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Tag, Challenge, Submission
+from .models import Category, Tag, Challenge, Submission, ChallengeSnapshot
 
 
 @admin.register(Category)
@@ -26,3 +26,10 @@ class SubmissionAdmin(admin.ModelAdmin):
     list_display = ("id", "team", "challenge", "is_correct", "flag_prefix", "created_at")
     list_filter = ("is_correct",)
     search_fields = ("team__name", "challenge__title")
+
+
+@admin.register(ChallengeSnapshot)
+class ChallengeSnapshotAdmin(admin.ModelAdmin):
+    list_display = ("id", "challenge", "reason", "created_at")
+    list_filter = ("reason", "challenge")
+    search_fields = ("challenge__title", "challenge__slug")

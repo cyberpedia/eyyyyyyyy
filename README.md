@@ -49,6 +49,21 @@ Backend (Django)
   - App-level rate limiting enabled (DB-overridable via Admin > Rate limit configs):
     - Flag submission: 10/min per user + 30/min per IP (429 on exceed)
     - Login: 5/min per IP
+  - Real-time:
+    - WebSocket at ws://localhost:8000/ws/leaderboard pushes live leaderboard updates on score events.
+
+Content and Moderation
+- Write-ups:
+  - Submit write-ups on challenge pages; they enter a moderation queue.
+  - API:
+    - GET http://localhost:8000/api/content/challenges/<challenge_id>/writeups?status=approved
+    - POST http://localhost:8000/api/content/challenges/<challenge_id>/writeups (auth required; CSRF)
+    - POST http://localhost:8000/api/content/writeups/<id>/moderate (staff-only; body: {action: approve|reject, notes})
+  - Bonus points:
+    - Approved write-ups award WRITEUP_BONUS_POINTS to the author’s team (default 25; configurable via env).
+- Frozen challenge snapshots:
+  - Admin can snapshot a challenge’s current state for freeze/moderation history:
+    - POST http://localhost:8000/api/admin/challenges/<id>/snapshot (body: {reason: freeze|moderation|manual})
 
 Ops (Rate limits viewer)
 - Frontend page: http://localhost:3000/ops/rate-limits (requires staff user in session)
@@ -81,6 +96,10 @@ Frontend (Next.js)
 - Location: frontend/
 - Minimal scaffold with App Router and Tailwind.
 - Talks to backend at http://localhost:8000/api
+- Leaderboard page connects to WebSocket for live updates.
 
 CI
 - GitHub Actions runs checks, migrations, and tests.
+
+Environment variables
+- WRITEUP_BONUS_POINTS: points awarded to a team when a member’s write-up is approved (default 25).

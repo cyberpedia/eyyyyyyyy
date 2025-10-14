@@ -17,17 +17,41 @@ type ChallengeDetail = {
   released_at: string | null;
 };
 
+type WriteUp = {
+  id: number;
+  title: string;
+  content_md: string;
+  username: string;
+  team?: number | null;
+  published_at?: string | null;
+};
+
 export default function ChallengeDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
   const [flag, setFlag] = useState("");
   const { notify, notifySuccess, notifyError } = useToast();
 
+  const [writeups, setWriteups] = useState<WriteUp[]>([]);
+  const [wuTitle, setWuTitle] = useState("");
+  const [wuContent, setWuContent] = useState("");
+
+  const getCsrfToken = () => {
+    if (typeof document === "undefined") return "";
+    const match = document.cookie.match(/csrftoken=([^;]+)/);
+    return match ? match[1] : "";
+  };
+
   useEffect(() => {
     fetch(`http://localhost:8000/api/challenges/${id}`, { credentials: "include" })
       .then((r) => r.json())
       .then(setChallenge)
       .catch((e) => notifyError(e?.message || "Failed to load challenge."));
+
+    fetch(`http://localhost:8000/api/content/challenges/${id}/writeups?status=approved`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setWriteups(d.results || []))
+      .catch(() => {});
   }, [id]);
 
   const submitFlag = async (e: React.FormEvent) => {
@@ -53,14 +77,38 @@ export default function ChallengeDetailPage({ params }: { params: { id: string }
     }
   };
 
+  const submitWriteUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      notify("info", "Submitting write-up...");
+      const r = await fetch(`http://localhost:8000/api/content/challenges/${id}/writeups`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+        body: JSON.stringify({ title: wuTitle, content_md: wuContent }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok) {
+        notifySuccess("Write-up submitted for moderation.");
+        setWuTitle("");
+        setWuContent("");
+      } else {
+        notifyError(data.detail || "Write-up submit failed.");
+      }
+    } catch (e: any) {
+      notifyError(e?.message || "Write-up submit failed.");
+    }
+  };
+
   if (!challenge) return <div>Loading...</div>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <h1 className="text-2xl font-semibold">{challenge.title}</h1>
       <div className="prose max-w-none">
         <p>{challenge.description}</p>
       </div>
+
       <form onSubmit={submitFlag} className="space-y-2">
         <input
           className="border rounded px-3 py-2 w-full"
@@ -70,6 +118,44 @@ export default function ChallengeDetailPage({ params }: { params: { id: string }
         />
         <button className="bg-blue-600 text-white px-4 py-2 rounded" type="submit">Submit Flag</button>
       </form>
+
+      <section>
+        <h2 className="text-lg font-medium mb-2">Write-ups</h2>
+        {writeups.length === 0 ? (
+          <div className="text-sm text-gray-600">No approved write-ups yet.</div>
+        ) : (
+          <ul className="space-y-2">
+            {writeups.map((w) => (
+              <li key={w.id} className="border rounded p-3">
+                <div className="font-semibold">{w.title}</div>
+                <div className="text-xs text-gray-600">
+                  by {w.username} {w.published_at ? `on ${w.published_at}` : ""}
+                </div>
+                <div className="prose max-w-none mt-2 whitespace-pre-wrap">{w.content_md}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h3 className="text-md font-medium mb-2">Submit your write-up</h3>
+        <form onSubmit={submitWriteUp} className="space-y-2">
+          <input
+            className="border rounded px-3 py-2 w-full"
+            placeholder="Title"
+            value={wuTitle}
+            onChange={(e) => setWuTitle(e.target.value)}
+          />
+          <textarea
+            className="border rounded px-3 py-2 w-full h-32"
+            placeholder="Markdown write-up..."
+            value={wuContent}
+            onChange={(e) => setWuContent(e.target.value)}
+          />
+          <button className="bg-gray-800 text-white px-4 py-2 rounded" type="submit">Submit Write-up</button>
+        </form>
+      </section>
     </div>
   );
 }

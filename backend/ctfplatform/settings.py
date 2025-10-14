@@ -230,6 +230,7 @@ if os.getenv("AWS_STORAGE_BUCKET_NAME"):
 # Game settings
 FLAG_HMAC_PEPPER = os.getenv("FLAG_HMAC_PEPPER", "dev-pepper-change-me")
 MIN_POINTS_FLOOR = int(os.getenv("MIN_POINTS_FLOOR", "50"))
+WRITEUP_BONUS_POINTS = int(os.getenv("WRITEUP_BONUS_POINTS", "25"))
 
 # Logging
 LOGGING = {

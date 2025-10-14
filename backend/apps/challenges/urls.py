@@ -6,6 +6,7 @@ from .views import (
     FlagSubmitView,
     AdminChallengeListCreateView,
     AdminChallengeDetailView,
+    AdminChallengeSnapshotView,
     LeaderboardView,
 )
 
@@ -17,4 +18,5 @@ urlpatterns = [
     # Admin
     path("admin/challenges", AdminChallengeListCreateView.as_view()),
     path("admin/challenges/<int:id>", AdminChallengeDetailView.as_view()),
+    path("admin/challenges/<int:id>/snapshot", AdminChallengeSnapshotView.as_view()),
 ]
