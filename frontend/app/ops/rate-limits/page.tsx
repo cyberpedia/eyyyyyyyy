@@ -35,6 +35,39 @@ export default function OpsRateLimitsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(60000);
 
+  // Persisted preferences keys
+  const AUTO_REFRESH_KEY = "opsRateLimits:autoRefresh";
+  const AUTO_REFRESH_INTERVAL_KEY = "opsRateLimits:autoRefreshIntervalMs";
+
+  // Load persisted prefs on mount
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      const savedToggle = window.localStorage.getItem(AUTO_REFRESH_KEY);
+      if (savedToggle !== null) setAutoRefresh(savedToggle === "1");
+      const savedInterval = window.localStorage.getItem(AUTO_REFRESH_INTERVAL_KEY);
+      if (savedInterval !== null) {
+        const ms = parseInt(savedInterval, 10);
+        if ([30000, 60000, 120000].includes(ms)) {
+          setAutoRefreshInterval(ms);
+        }
+      }
+    } catch (_) {
+      // ignore storage errors
+    }
+  }, []);
+
+  // Persist changes
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem(AUTO_REFRESH_KEY, autoRefresh ? "1" : "0");
+      window.localStorage.setItem(AUTO_REFRESH_INTERVAL_KEY, String(autoRefreshInterval));
+    } catch (_) {
+      // ignore storage errors
+    }
+  }, [autoRefresh, autoRefreshInterval]);
+
   const reloadAll = async (silent = false) => {
     try {
       setRefreshing(true);
