@@ -139,18 +139,24 @@ export default function OpsRateLimitsPage() {
     }
   };
 
-  const applyPreset = async (preset: "competition" | "practice") => {
+  const applyPreset = async (preset: "competition" | "practice" | "heavy") => {
     setMsg(null);
     setError(null);
-    const presets: Record<string, { user_rate: string; ip_rate: string }> = preset === "competition"
-      ? {
-          "flag-submit": { user_rate: "10/min", ip_rate: "30/min" },
-          "login": { user_rate: "", ip_rate: "5/min" },
-        }
-      : {
-          "flag-submit": { user_rate: "30/min", ip_rate: "60/min" },
-          "login": { user_rate: "", ip_rate: "30/min" },
-        };
+    const presetsMap: Record<"competition" | "practice" | "heavy", Record<string, { user_rate: string; ip_rate: string }>> = {
+      competition: {
+        "flag-submit": { user_rate: "10/min", ip_rate: "30/min" },
+        "login": { user_rate: "", ip_rate: "5/min" },
+      },
+      practice: {
+        "flag-submit": { user_rate: "30/min", ip_rate: "60/min" },
+        "login": { user_rate: "", ip_rate: "30/min" },
+      },
+      heavy: {
+        "flag-submit": { user_rate: "20/min", ip_rate: "100/min" },
+        "login": { user_rate: "", ip_rate: "15/min" },
+      },
+    };
+    const presets = presetsMap[preset];
 
     try {
       // Apply each scope override
@@ -177,6 +183,51 @@ export default function OpsRateLimitsPage() {
       setMsg(`Applied ${preset} preset.`);
     } catch (e: any) {
       setError(e.message || "Apply preset failed.");
+    }
+  };
+
+  const applyEnvPreset = async (env: "dev" | "staging" | "prod") => {
+    setMsg(null);
+    setError(null);
+    const envPresets: Record<"dev" | "staging" | "prod", Record<string, { user_rate: string; ip_rate: string }>> = {
+      dev: {
+        "flag-submit": { user_rate: "120/min", ip_rate: "240/min" },
+        "login": { user_rate: "", ip_rate: "60/min" },
+      },
+      staging: {
+        "flag-submit": { user_rate: "30/min", ip_rate: "60/min" },
+        "login": { user_rate: "", ip_rate: "15/min" },
+      },
+      prod: {
+        "flag-submit": { user_rate: "10/min", ip_rate: "30/min" },
+        "login": { user_rate: "", ip_rate: "5/min" },
+      },
+    };
+    const presets = envPresets[env];
+
+    try {
+      for (const [s, rates] of Object.entries(presets)) {
+        const r = await fetch("http://localhost:8000/api/ops/rate-limits", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCsrfToken(),
+          },
+          body: JSON.stringify({ scope: s, user_rate: rates.user_rate, ip_rate: rates.ip_rate }),
+        });
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          throw new Error(d.detail || `Failed applying ${env} preset for scope ${s} (HTTP ${r.status})`);
+        }
+      }
+      const rr = await fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" });
+      const dd = await rr.json().catch(() => ({}));
+      if (!rr.ok) throw new Error(dd.detail || `HTTP ${rr.status}`);
+      setData(dd);
+      setMsg(`Applied ${env} environment preset.`);
+    } catch (e: any) {
+      setError(e.message || "Apply environment preset failed.");
     }
   };
 
@@ -211,9 +262,42 @@ export default function OpsRateLimitsPage() {
           >
             Practice mode
           </button>
+          <button
+            className="bg-purple-600 text-white px-3 py-2 rounded"
+            onClick={() => applyPreset("heavy")}
+          >
+            Heavy load mode
+          </button>
         </div>
         <p className="text-xs text-gray-600 mt-2">
           Presets quickly apply recommended limits for login and flag submissions. Adjust as needed for your event.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-medium mb-2">Environment Presets</h2>
+        <div className="space-x-2">
+          <button
+            className="bg-gray-800 text-white px-3 py-2 rounded"
+            onClick={() => applyEnvPreset("dev")}
+          >
+            Dev
+          </button>
+          <button
+            className="bg-gray-600 text-white px-3 py-2 rounded"
+            onClick={() => applyEnvPreset("staging")}
+          >
+            Staging
+          </button>
+          <button
+            className="bg-gray-400 text-black px-3 py-2 rounded"
+            onClick={() => applyEnvPreset("prod")}
+          >
+            Prod
+          </button>
+        </div>
+        <p className="text-xs text-gray-600 mt-2">
+          Environment presets are suggestions. Apply in each environment separately.
         </p>
       </section>
 
