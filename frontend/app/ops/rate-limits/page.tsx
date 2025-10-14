@@ -28,6 +28,18 @@ export default function OpsRateLimitsPage() {
   const [presetEditor, setPresetEditor] = useState<string>("");
   const [me, setMe] = useState<{ isSuperuser?: boolean; isStaff?: boolean } | null>(null);
 
+  type DryRow = {
+    scope: string;
+    current_user_rate?: string;
+    current_ip_rate?: string;
+    new_user_rate?: string;
+    new_ip_rate?: string;
+    changed_user: boolean;
+    changed_ip: boolean;
+  };
+  const [dryRunRows, setDryRunRows] = useState<DryRow[]>([]);
+  const [dryRunTitle, setDryRunTitle] = useState<string>("");
+
   useEffect(() => {
     fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" })
       .then(async (r) => {
@@ -231,6 +243,51 @@ export default function OpsRateLimitsPage() {
     }
   };
 
+  const dryRunCompute = (overrides: Record<string, { user_rate: string; ip_rate: string }>) => {
+    if (!data) return;
+    const rows: DryRow[] = [];
+    const defaults = data.defaults || {};
+    const effective = data.effective || {};
+    for (const [scope, rates] of Object.entries(overrides)) {
+      const current_user = (effective[scope]?.user_rate as string | undefined) ?? (defaults[scope] as string | undefined);
+      const current_ip = (effective[scope]?.ip_rate as string | undefined) ?? (defaults[`${scope}-ip`] as string | undefined);
+      const new_user = (rates.user_rate || rates.user_rate === "") ? (rates.user_rate === "" ? (defaults[scope] as string | undefined) : rates.user_rate) : current_user;
+      const new_ip = (rates.ip_rate || rates.ip_rate === "") ? (rates.ip_rate === "" ? (defaults[`${scope}-ip`] as string | undefined) : rates.ip_rate) : current_ip;
+      rows.push({
+        scope,
+        current_user_rate: current_user,
+        current_ip_rate: current_ip,
+        new_user_rate: new_user,
+        new_ip_rate: new_ip,
+        changed_user: (new_user ?? "") !== (current_user ?? ""),
+        changed_ip: (new_ip ?? "") !== (current_ip ?? ""),
+      });
+    }
+    setDryRunRows(rows);
+  };
+
+  const dryRunPreset = (preset: "competition" | "practice" | "heavy") => {
+    setMsg(null);
+    setError(null);
+    if (!presetConfig?.presets || !presetConfig.presets[preset]) {
+      setError("Preset config not loaded or preset missing.");
+      return;
+    }
+    setDryRunTitle(`Dry-run: ${preset} preset`);
+    dryRunCompute(presetConfig.presets[preset]);
+  };
+
+  const dryRunEnvPreset = (env: "dev" | "staging" | "prod") => {
+    setMsg(null);
+    setError(null);
+    if (!presetConfig?.env_presets || !presetConfig.env_presets[env]) {
+      setError("Environment preset config not loaded or preset missing.");
+      return;
+    }
+    setDryRunTitle(`Dry-run: ${env} environment preset`);
+    dryRunCompute(presetConfig.env_presets[env]);
+  };
+
   if (error) {
     return <div className="text-red-700">Error: {error}. Ensure you are logged in and have staff privileges.</div>;
   }
@@ -242,9 +299,17 @@ export default function OpsRateLimitsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Rate Limits (Ops)</h1>
-        <button onClick={clearCache} className="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">
-          Clear all cache
-        </button>
+        <div className="flex items-center gap-2">
+          {me?.isStaff ? (
+            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">Staff</span>
+          ) : (
+            <span className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">Not staff</span>
+          )}
+          {me?.isSuperuser && <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">Superuser</span>}
+          <button onClick={clearCache} className="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">
+            Clear all cache
+          </button>
+        </div>
       </div>
 
       <section>
@@ -256,17 +321,26 @@ export default function OpsRateLimitsPage() {
           >
             Competition mode
           </button>
+          <button className="px-3 py-2 border rounded" onClick={() => dryRunPreset("competition")}>
+            Preview
+          </button>
           <button
             className="bg-green-600 text-white px-3 py-2 rounded"
             onClick={() => applyPreset("practice")}
           >
             Practice mode
           </button>
+          <button className="px-3 py-2 border rounded" onClick={() => dryRunPreset("practice")}>
+            Preview
+          </button>
           <button
             className="bg-purple-600 text-white px-3 py-2 rounded"
             onClick={() => applyPreset("heavy")}
           >
             Heavy load mode
+          </button>
+          <button className="px-3 py-2 border rounded" onClick={() => dryRunPreset("heavy")}>
+            Preview
           </button>
         </div>
         <p className="text-xs text-gray-600 mt-2">
@@ -283,17 +357,26 @@ export default function OpsRateLimitsPage() {
           >
             Dev
           </button>
+          <button className="px-3 py-2 border rounded" onClick={() => dryRunEnvPreset("dev")}>
+            Preview
+          </button>
           <button
             className="bg-gray-600 text-white px-3 py-2 rounded"
             onClick={() => applyEnvPreset("staging")}
           >
             Staging
           </button>
+          <button className="px-3 py-2 border rounded" onClick={() => dryRunEnvPreset("staging")}>
+            Preview
+          </button>
           <button
             className="bg-gray-400 text-black px-3 py-2 rounded"
             onClick={() => applyEnvPreset("prod")}
           >
             Prod
+          </button>
+          <button className="px-3 py-2 border rounded" onClick={() => dryRunEnvPreset("prod")}>
+            Preview
           </button>
         </div>
         <p className="text-xs text-gray-600 mt-2">
@@ -515,5 +598,56 @@ export default function OpsRateLimitsPage() {
           </table>
         )}
       </section>
+
+      {dryRunRows.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-lg font-medium">{dryRunTitle}</h2>
+            <button
+              className="px-3 py-2 border rounded"
+              onClick={() => {
+                setDryRunRows([]);
+                setDryRunTitle("");
+              }}
+            >
+              Clear
+            </button>
+          </div>
+          <table className="min-w-full border">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="p-2 text-left">Scope</th>
+                <th className="p-2 text-left">Current user</th>
+                <th className="p-2 text-left">New user</th>
+                <th className="p-2 text-left">Current IP</th>
+                <th className="p-2 text-left">New IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dryRunRows.map((row) => (
+                <tr key={row.scope} className="border-t">
+                  <td className="p-2">{row.scope}</td>
+                  <td className={`p-2 ${row.changed_user ? "text-gray-700" : "text-gray-500"}`}>
+                    {row.current_user_rate ?? "-"}
+                  </td>
+                  <td className={`p-2 ${row.changed_user ? "text-blue-700 font-medium" : "text-gray-500"}`}>
+                    {row.new_user_rate ?? "-"}
+                  </td>
+                  <td className={`p-2 ${row.changed_ip ? "text-gray-700" : "text-gray-500"}`}>
+                    {row.current_ip_rate ?? "-"}
+                  </td>
+                  <td className={`p-2 ${row.changed_ip ? "text-blue-700 font-medium" : "text-gray-500"}`}>
+                    {row.new_ip_rate ?? "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-xs text-gray-600 mt-2">
+            Preview shows what effective rates would be if the preset were applied. No changes are made.
+          </p>
+        </section>
+      )}
+
     </div>
   );
