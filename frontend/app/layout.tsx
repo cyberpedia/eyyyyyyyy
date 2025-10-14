@@ -20,6 +20,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <nav className="space-x-4 flex items-center">
                 <a href="/challenges" className="hover:underline">Challenges</a>
                 <a href="/leaderboard" className="hover:underline">Leaderboard</a>
+                <a href="/ad/1" className="hover:underline">Attack-Defense</a>
+                <a href="/koth/1" className="hover:underline">KotH</a>
                 <a href="/ops/rate-limits" className="hover:underline">Ops Rate Limits</a>
                 <a href="/ops/writeups" className="hover:underline">Ops Write-ups</a>
                 <a href="/ops/settings" className="hover:underline">Ops Settings</a>

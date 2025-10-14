@@ -1,5 +1,15 @@
 from django.contrib import admin
-from .models import Category, Tag, Challenge, Submission, ChallengeSnapshot
+from .models import (
+    Category,
+    Tag,
+    Challenge,
+    Submission,
+    ChallengeSnapshot,
+    TeamServiceInstance,
+    DefenseToken,
+    AttackEvent,
+    OwnershipEvent,
+)
 
 
 @admin.register(Category)
@@ -16,8 +26,8 @@ class TagAdmin(admin.ModelAdmin):
 
 @admin.register(Challenge)
 class ChallengeAdmin(admin.ModelAdmin):
-    list_display = ("id", "title", "slug", "category", "scoring_model", "points_max", "released_at")
-    list_filter = ("scoring_model", "category")
+    list_display = ("id", "title", "slug", "category", "mode", "scoring_model", "points_max", "released_at")
+    list_filter = ("scoring_model", "category", "mode")
     search_fields = ("title", "slug")
 
 
@@ -33,3 +43,31 @@ class ChallengeSnapshotAdmin(admin.ModelAdmin):
     list_display = ("id", "challenge", "reason", "created_at")
     list_filter = ("reason", "challenge")
     search_fields = ("challenge__title", "challenge__slug")
+
+
+@admin.register(TeamServiceInstance)
+class TeamServiceInstanceAdmin(admin.ModelAdmin):
+    list_display = ("id", "team", "challenge", "status", "endpoint_url", "last_check_at", "created_at")
+    list_filter = ("status", "challenge")
+    search_fields = ("team__name", "challenge__title")
+
+
+@admin.register(DefenseToken)
+class DefenseTokenAdmin(admin.ModelAdmin):
+    list_display = ("id", "challenge", "team", "tick", "minted_at", "expires_at")
+    list_filter = ("challenge",)
+    search_fields = ("team__name", "challenge__title", "token")
+
+
+@admin.register(AttackEvent)
+class AttackEventAdmin(admin.ModelAdmin):
+    list_display = ("id", "challenge", "attacker_team", "victim_team", "tick", "points_awarded", "created_at")
+    list_filter = ("challenge",)
+    search_fields = ("attacker_team__name", "victim_team__name")
+
+
+@admin.register(OwnershipEvent)
+class OwnershipEventAdmin(admin.ModelAdmin):
+    list_display = ("id", "challenge", "owner_team", "from_ts", "to_ts", "points_awarded")
+    list_filter = ("challenge",)
+    search_fields = ("owner_team__name", "challenge__title")

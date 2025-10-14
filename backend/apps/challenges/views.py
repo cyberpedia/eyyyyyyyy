@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import Optional
 
@@ -13,7 +14,18 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.models import Team, Membership, ScoreEvent
-from .models import Challenge, Submission, verify_flag, Category, Tag, ChallengeSnapshot
+from .models import (
+    Challenge,
+    Submission,
+    verify_flag,
+    Category,
+    Tag,
+    ChallengeSnapshot,
+    DefenseToken,
+    AttackEvent,
+    TeamServiceInstance,
+    OwnershipEvent,
+)
 from .serializers import (
     ChallengeListItemSerializer,
     ChallengeDetailSerializer,
@@ -224,3 +236,248 @@ class LeaderboardView(APIView):
                 last_score = score
             results.append({"rank": rank, "team_id": row["id"], "team_name": row["name"], "score": score})
         return Response({"as_of": timezone.now(), "results": results})
+
+
+# --- Attack-Defense endpoints ---
+
+class ADSubmitView(APIView):
+    """
+    Submit a captured defense token for Attack-Defense challenges.
+    """
+    throttle_scope = "flag-submit"
+
+    def post(self, request, id: int):
+        try:
+            challenge = Challenge.objects.get(id=id)
+        except Challenge.DoesNotExist:
+            raise Http404
+        if challenge.mode != Challenge.MODE_ATTACK_DEFENSE:
+            return Response({"detail": "Not an Attack-Defense challenge."}, status=status.HTTP_400_BAD_REQUEST)
+
+        team = Team.objects.filter(memberships__user=request.user).first()
+        if not team:
+            return Response({"detail": "Join or create a team first."}, status=status.HTTP_400_BAD_REQUEST)
+
+        token = (request.data.get("token") or "").strip()
+        if not token:
+            return Response({"detail": "token is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Locate defense token
+        dt = DefenseToken.objects.filter(challenge=challenge, token=token).first()
+        if not dt:
+            return Response({"detail": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if dt.team_id == team.id:
+            return Response({"detail": "Cannot submit your own team's token."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if dt.expires_at and dt.expires_at < timezone.now():
+            return Response({"detail": "Token expired."}, status=status.HTTP_400_BAD_REQUEST)
+
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        # Prevent replay: one AttackEvent per token_hash & challenge
+        if AttackEvent.objects.filter(challenge=challenge, token_hash=token_hash).exists():
+            return Response({"detail": "Token already used."}, status=status.HTTP_400_BAD_REQUEST)
+
+        points = int(challenge.checker_config.get("ad_attack_points", 100))
+        AttackEvent.objects.create(
+            attacker_team=team,
+            victim_team_id=dt.team_id,
+            challenge=challenge,
+            tick=dt.tick,
+            token_hash=token_hash,
+            points_awarded=points,
+        )
+        ScoreEvent.objects.create(
+            team=team,
+            user=request.user,
+            challenge_id=challenge.id,
+            type=ScoreEvent.TYPE_AD_ATTACK_SUCCESS,
+            delta=points,
+            metadata={"victim_team_id": dt.team_id, "tick": dt.tick},
+        )
+        return Response({"ok": True, "points_awarded": points})
+
+
+class ADAttackLogView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, id: int):
+        try:
+            challenge = Challenge.objects.get(id=id)
+        except Challenge.DoesNotExist:
+            raise Http404
+        if challenge.mode != Challenge.MODE_ATTACK_DEFENSE:
+            return Response({"detail": "Not an Attack-Defense challenge."}, status=status.HTTP_400_BAD_REQUEST)
+        logs = (
+            AttackEvent.objects.filter(challenge=challenge)
+            .order_by("-created_at")[:100]
+        )
+        results = [
+            {
+                "id": ev.id,
+                "attacker_team_id": ev.attacker_team_id,
+                "victim_team_id": ev.victim_team_id,
+                "tick": ev.tick,
+                "points_awarded": ev.points_awarded,
+                "created_at": ev.created_at,
+            }
+            for ev in logs
+        ]
+        return Response({"results": results})
+
+
+class ADServicesStatusView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, id: int):
+        try:
+            challenge = Challenge.objects.get(id=id)
+        except Challenge.DoesNotExist:
+            raise Http404
+        if challenge.mode != Challenge.MODE_ATTACK_DEFENSE:
+            return Response({"detail": "Not an Attack-Defense challenge."}, status=status.HTTP_400_BAD_REQUEST)
+
+        rows = TeamServiceInstance.objects.filter(challenge=challenge).order_by("team__name")
+        results = [
+            {
+                "team_id": inst.team_id,
+                "team_name": inst.team.name,
+                "status": inst.status,
+                "endpoint_url": inst.endpoint_url,
+                "last_check_at": inst.last_check_at,
+            }
+            for inst in rows
+        ]
+        return Response({"results": results})
+
+
+# --- KotH endpoints ---
+
+class KothStatusView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, id: int):
+        try:
+            challenge = Challenge.objects.get(id=id)
+        except Challenge.DoesNotExist:
+            raise Http404
+        if challenge.mode != Challenge.MODE_KOTH:
+            return Response({"detail": "Not a KotH challenge."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Current owner: latest event with open interval or latest by from_ts
+        ev = (
+            OwnershipEvent.objects.filter(challenge=challenge, to_ts__isnull=True)
+            .order_by("-from_ts")
+            .first()
+        ) or (
+            OwnershipEvent.objects.filter(challenge=challenge)
+            .order_by("-from_ts")
+            .first()
+        )
+        if not ev:
+            return Response({"owner_team_id": None, "owner_team_name": None})
+        return Response({"owner_team_id": ev.owner_team_id, "owner_team_name": ev.owner_team.name, "from_ts": ev.from_ts})
+
+
+class KothOwnershipHistoryView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, id: int):
+        try:
+            challenge = Challenge.objects.get(id=id)
+        except Challenge.DoesNotExist:
+            raise Http404
+        if challenge.mode != Challenge.MODE_KOTH:
+            return Response({"detail": "Not a KotH challenge."}, status=status.HTTP_400_BAD_REQUEST)
+
+        rows = OwnershipEvent.objects.filter(challenge=challenge).order_by("-from_ts")[:100]
+        results = [
+            {
+                "owner_team_id": r.owner_team_id,
+                "owner_team_name": r.owner_team.name,
+                "from_ts": r.from_ts,
+                "to_ts": r.to_ts,
+                "points_awarded": r.points_awarded,
+            }
+            for r in rows
+        ]
+        return Response({"results": results})
+
+
+# --- Instances API (spawn/stop/list) ---
+
+class InstancesSpawnView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        challenge_id = request.data.get("challenge_id")
+        if not challenge_id:
+            return Response({"detail": "challenge_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            challenge = Challenge.objects.get(id=int(challenge_id))
+        except (Challenge.DoesNotExist, ValueError):
+            raise Http404
+
+        if not challenge.instance_required:
+            return Response({"detail": "This challenge does not support instances."}, status=status.HTTP_400_BAD_REQUEST)
+
+        team = Team.objects.filter(memberships__user=request.user).first()
+        if not team:
+            return Response({ "detail": "Join or create a team first." }, status=status.HTTP_400_BAD_REQUEST)
+
+        inst = TeamServiceInstance.objects.create(
+            team=team,
+            challenge=challenge,
+            status=TeamServiceInstance.STATUS_PENDING,
+            endpoint_url="",
+        )
+        return Response({
+            "id": inst.id,
+            "team_id": inst.team_id,
+            "challenge_id": inst.challenge_id,
+            "status": inst.status,
+            "endpoint_url": inst.endpoint_url,
+        }, status=status.HTTP_201_CREATED)
+
+
+class InstancesStopView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        instance_id = request.data.get("instance_id")
+        if not instance_id:
+            return Response({"detail": "instance_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            inst = TeamServiceInstance.objects.get(id=int(instance_id))
+        except (TeamServiceInstance.DoesNotExist, ValueError):
+            raise Http404
+
+        # Only the owning team's member can stop
+        team = Team.objects.filter(memberships__user=request.user).first()
+        if not team or inst.team_id != team.id:
+            return Response({"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN)
+
+        inst.status = TeamServiceInstance.STATUS_STOPPED
+        inst.save(update_fields=["status"])
+        return Response({"ok": True})
+
+
+class InstancesMyView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        team = Team.objects.filter(memberships__user=request.user).first()
+        if not team:
+            return Response({"results": []})
+        rows = TeamServiceInstance.objects.filter(team=team).order_by("-created_at")
+        results = [
+            {
+                "id": r.id,
+                "challenge_id": r.challenge_id,
+                "status": r.status,
+                "endpoint_url": r.endpoint_url,
+                "last_check_at": r.last_check_at,
+            }
+            for r in rows
+        ]
+        return Response({"results": results})

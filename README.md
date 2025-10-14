@@ -112,6 +112,31 @@ Frontend (Next.js)
 - Server-side guard: all /ops pages are protected by a server layout that checks /api/users/me before rendering and redirects to /login if not staff.
 - Leaderboard page connects to WebSocket for live updates.
 
+Challenge modes (Jeopardy, Attack-Defense, KotH)
+- Jeopardy: existing static/dynamic scoring and flag submissions.
+- Attack-Defense (AD):
+  - Backend endpoints:
+    - POST /api/ad/<challenge_id>/submit {token} — submit a captured defense token (awards points)
+    - GET /api/ad/<challenge_id>/attack-log — recent attack events
+    - GET /api/ad/<challenge_id>/services/status — per-team service instance health
+  - Celery task run_tick(challenge_id, tick) awards defense uptime per tick and mints per-team defense tokens.
+  - Dev helper: docker compose exec backend python manage.py run_tick <challenge_id> --tick 1
+  - Frontend page: /ad/<challenge_id> — submit tokens, view service status and attack log.
+- King of the Hill (KotH):
+  - Backend endpoints:
+    - GET /api/koth/<challenge_id>/status — current owner
+    - GET /api/koth/<challenge_id>/ownership-history — history of ownership changes
+  - Celery task run_tick(challenge_id, tick) will award hold points to the current owner once checker integration is added.
+  - Frontend page: /koth/<challenge_id> — view current owner and history.
+- Instances API (for spawned services):
+  - POST /api/instances/spawn {challenge_id} — create a pending instance for your team (challenge.instance_required must be true)
+  - POST /api/instances/stop {instance_id} — stop your instance
+  - GET /api/instances/my — list your team’s instances
+
+Notes:
+- To use AD/KotH modes, set challenge.mode accordingly via Admin or API. Checker integration can be configured with challenge.checker_config (JSON).
+- Celery beat/worker should be deployed to run ticks automatically. In dev, use the management command above to simulate ticks.
+
 CI
 - GitHub Actions runs checks, migrations, and tests.
 

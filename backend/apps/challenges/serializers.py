@@ -39,6 +39,8 @@ class ChallengeListItemSerializer(serializers.ModelSerializer):
             "tags",
             "is_dynamic",
             "released_at",
+            "mode",
+            "tick_seconds",
         ]
 
     def get_category(self, obj):
@@ -84,6 +86,10 @@ class ChallengeAdminSerializer(serializers.ModelSerializer):
             "k",
             "is_dynamic",
             "released_at",
+            "mode",
+            "tick_seconds",
+            "instance_required",
+            "checker_config",
             "flag",
             "flag_hmac",
         ]

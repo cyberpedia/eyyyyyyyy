@@ -46,6 +46,10 @@ class ScoreEvent(models.Model):
     TYPE_BONUS = "bonus"
     TYPE_WRITEUP_BONUS = "writeup_bonus"
     TYPE_BADGE = "badge"
+    # Extended modes
+    TYPE_AD_DEFENSE_UPTIME = "ad_defense_uptime"
+    TYPE_AD_ATTACK_SUCCESS = "ad_attack_success"
+    TYPE_KOTH_HOLD = "koth_hold"
 
     TYPE_CHOICES = [
         (TYPE_SOLVE, "Solve"),
@@ -53,6 +57,9 @@ class ScoreEvent(models.Model):
         (TYPE_BONUS, "Bonus"),
         (TYPE_WRITEUP_BONUS, "Write-up Bonus"),
         (TYPE_BADGE, "Badge"),
+        (TYPE_AD_DEFENSE_UPTIME, "Attack-Defense Defense Uptime"),
+        (TYPE_AD_ATTACK_SUCCESS, "Attack-Defense Attack Success"),
+        (TYPE_KOTH_HOLD, "King of the Hill Hold"),
     ]
 
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="score_events")

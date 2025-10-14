@@ -45,6 +45,15 @@ class Challenge(models.Model):
     SCORING_DYNAMIC = "dynamic"
     SCORING_CHOICES = [(SCORING_STATIC, "Static"), (SCORING_DYNAMIC, "Dynamic")]
 
+    MODE_JEOPARDY = "JEOPARDY"
+    MODE_ATTACK_DEFENSE = "ATTACK_DEFENSE"
+    MODE_KOTH = "KOTH"
+    MODE_CHOICES = [
+        (MODE_JEOPARDY, "Jeopardy"),
+        (MODE_ATTACK_DEFENSE, "Attack-Defense"),
+        (MODE_KOTH, "King of the Hill"),
+    ]
+
     title = models.CharField(max_length=200)
     slug = models.SlugField(max_length=220, unique=True)
     description = models.TextField()
@@ -58,6 +67,12 @@ class Challenge(models.Model):
     released_at = models.DateTimeField(null=True, blank=True)
     flag_hmac = models.CharField(max_length=64)  # sha256 hex
     created_at = models.DateTimeField(default=timezone.now)
+
+    # Multi-mode support
+    mode = models.CharField(max_length=32, choices=MODE_CHOICES, default=MODE_JEOPARDY)
+    tick_seconds = models.PositiveIntegerField(default=60)
+    instance_required = models.BooleanField(default=False)
+    checker_config = models.JSONField(default=dict, blank=True)
 
     class Meta:
         indexes = [models.Index(fields=["slug"])]
@@ -126,6 +141,83 @@ class ChallengeSnapshot(models.Model):
 
     def __str__(self) -> str:
         return f"Snapshot {self.id} of {self.challenge_id} ({self.reason})"
+
+
+# --- Attack-Defense and KotH models ---
+
+class TeamServiceInstance(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_RUNNING = "running"
+    STATUS_ERROR = "error"
+    STATUS_STOPPED = "stopped"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_RUNNING, "Running"),
+        (STATUS_ERROR, "Error"),
+        (STATUS_STOPPED, "Stopped"),
+    ]
+
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="service_instances")
+    challenge = models.ForeignKey(Challenge, on_delete=models.CASCADE, related_name="service_instances")
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    endpoint_url = models.URLField(blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    last_check_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["challenge", "team"])]
+
+    def __str__(self) -> str:
+        return f"Inst {self.id} team={self.team_id} chal={self.challenge_id} status={self.status}"
+
+
+class DefenseToken(models.Model):
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="defense_tokens")
+    challenge = models.ForeignKey(Challenge, on_delete=models.CASCADE, related_name="defense_tokens")
+    instance = models.ForeignKey(TeamServiceInstance, null=True, blank=True, on_delete=models.SET_NULL)
+    tick = models.BigIntegerField()
+    token = models.CharField(max_length=128)  # random token (optionally HMAC)
+    minted_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["challenge", "team", "tick"]),
+            models.Index(fields=["token"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Token chal={self.challenge_id} team={self.team_id} tick={self.tick}"
+
+
+class AttackEvent(models.Model):
+    attacker_team = models.ForeignKey(Team, related_name="attacks", on_delete=models.CASCADE)
+    victim_team = models.ForeignKey(Team, related_name="victim_attacks", on_delete=models.CASCADE)
+    challenge = models.ForeignKey(Challenge, on_delete=models.CASCADE, related_name="attack_events")
+    tick = models.BigIntegerField()
+    token_hash = models.CharField(max_length=128)
+    points_awarded = models.IntegerField(default=0)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        indexes = [models.Index(fields=["challenge", "-created_at"])]
+
+    def __str__(self) -> str:
+        return f"Attack {self.id} {self.attacker_team_id} -> {self.victim_team_id} ({self.points_awarded})"
+
+
+class OwnershipEvent(models.Model):
+    challenge = models.ForeignKey(Challenge, on_delete=models.CASCADE, related_name="ownership_events")
+    owner_team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="koth_ownerships")
+    from_ts = models.DateTimeField()
+    to_ts = models.DateTimeField(null=True, blank=True)
+    points_awarded = models.IntegerField(default=0)
+
+    class Meta:
+        indexes = [models.Index(fields=["challenge", "-from_ts"])]
+
+    def __str__(self) -> str:
+        return f"KotH {self.challenge_id} owned by {self.owner_team_id}"
 
 
 def verify_flag(challenge: Challenge, submitted_flag: str) -> bool:
