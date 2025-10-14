@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
+import { useToast } from "../../../components/ToastProvider";
 
 type RateDefaults = Record<string, string>;
 type DbOverride = { scope: string; user_rate: string; ip_rate: string; updated_at: string };
