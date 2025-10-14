@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import hmac
 import logging
+import json
+from pathlib import Path
 from typing import Dict, Any
 
+from django.conf import settings
 from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.core.cache import cache
 from django.db import transaction
@@ -274,3 +277,109 @@ class RateLimitsCacheView(APIView):
         # Return current payload
         view = RateLimitsStatusView()
         return Response(view._payload(), status=status.HTTP_200_OK)
+
+
+class RateLimitPresetsView(APIView):
+    """
+    Manage preset configurations stored on disk (config/rate_limit_presets.json).
+    Allows ops/admins to adjust presets without code changes.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def _default(self) -> Dict[str, Any]:
+        return {
+            "presets": {
+                "competition": {
+                    "flag-submit": {"user_rate": "10/min", "ip_rate": "30/min"},
+                    "login": {"user_rate": "", "ip_rate": "5/min"},
+                },
+                "practice": {
+                    "flag-submit": {"user_rate": "30/min", "ip_rate": "60/min"},
+                    "login": {"user_rate": "", "ip_rate": "30/min"},
+                },
+                "heavy": {
+                    "flag-submit": {"user_rate": "20/min", "ip_rate": "100/min"},
+                    "login": {"user_rate": "", "ip_rate": "15/min"},
+                },
+            },
+            "env_presets": {
+                "dev": {
+                    "flag-submit": {"user_rate": "120/min", "ip_rate": "240/min"},
+                    "login": {"user_rate": "", "ip_rate": "60/min"},
+                },
+                "staging": {
+                    "flag-submit": {"user_rate": "30/min", "ip_rate": "60/min"},
+                    "login": {"user_rate": "", "ip_rate": "15/min"},
+                },
+                "prod": {
+                    "flag-submit": {"user_rate": "10/min", "ip_rate": "30/min"},
+                    "login": {"user_rate": "", "ip_rate": "5/min"},
+                },
+            },
+        }
+
+    def _validate_rates(self, cfg: Dict[str, Any]) -> bool:
+        from rest_framework.throttling import SimpleRateThrottle
+
+        parser = SimpleRateThrottle()
+
+        def ok(rate: str) -> bool:
+            return rate == "" or parser.parse_rate(rate) is not None
+
+        def check_map(m: Dict[str, Any]) -> bool:
+            for scope, rates in m.items():
+                if not isinstance(rates, dict):
+                    return False
+                ur = rates.get("user_rate", "")
+                ir = rates.get("ip_rate", "")
+                if not isinstance(ur, str) or not isinstance(ir, str):
+                    return False
+                if not ok(ur) or not ok(ir):
+                    return False
+            return True
+
+        presets = cfg.get("presets", {})
+        env_presets = cfg.get("env_presets", {})
+        if not isinstance(presets, dict) or not isinstance(env_presets, dict):
+            return False
+
+        # Validate each preset group
+        for name, m in presets.items():
+            if not isinstance(m, dict) or not check_map(m):
+                return False
+        for name, m in env_presets.items():
+            if not isinstance(m, dict) or not check_map(m):
+                return False
+        return True
+
+    def get(self, request):
+        path = Path(settings.RATE_LIMIT_PRESETS_PATH)
+        if path.exists():
+            try:
+                with path.open("r") as f:
+                    data = json.load(f)
+                return Response(data)
+            except Exception:
+                # Fall back to defaults if file corrupted
+                return Response(self._default())
+        return Response(self._default())
+
+    def post(self, request):
+        """
+        Overwrite presets file. Body should be JSON with keys:
+        { "presets": { ... }, "env_presets": { ... } }
+        """
+        try:
+            cfg = dict(request.data)
+        except Exception:
+            return Response({"detail": "invalid payload"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not self._validate_rates(cfg):
+            return Response({"detail": "invalid presets structure or rate format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        path = Path(settings.RATE_LIMIT_PRESETS_PATH)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w") as f:
+            json.dump(cfg, f, indent=2)
+
+        return Response(cfg, status=status.HTTP_200_OK)

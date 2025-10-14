@@ -159,6 +159,9 @@ MEDIA_ROOT = str(BASE_DIR / "media")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Ops presets config path (editable via API)
+RATE_LIMIT_PRESETS_PATH = str(BASE_DIR / "config" / "rate_limit_presets.json")
+
 # Security headers
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "0") == "1"
 CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", "0") == "1"

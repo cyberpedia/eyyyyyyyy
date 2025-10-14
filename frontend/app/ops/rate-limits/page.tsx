@@ -24,6 +24,8 @@ export default function OpsRateLimitsPage() {
   const [userRate, setUserRate] = useState("");
   const [ipRate, setIpRate] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const [presetConfig, setPresetConfig] = useState<any | null>(null);
+  const [presetEditor, setPresetEditor] = useState<string>("");
 
   useEffect(() => {
     fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" })
@@ -35,6 +37,20 @@ export default function OpsRateLimitsPage() {
         return r.json();
       })
       .then((d) => setData(d))
+      .catch((e) => setError(e.message));
+
+    fetch("http://localhost:8000/api/ops/rate-limits/presets", { credentials: "include" })
+      .then(async (r) => {
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          throw new Error(d.detail || `HTTP ${r.status}`);
+        }
+        return r.json();
+      })
+      .then((d) => {
+        setPresetConfig(d);
+        setPresetEditor(JSON.stringify(d, null, 2));
+      })
       .catch((e) => setError(e.message));
   }, []);
 
@@ -142,24 +158,13 @@ export default function OpsRateLimitsPage() {
   const applyPreset = async (preset: "competition" | "practice" | "heavy") => {
     setMsg(null);
     setError(null);
-    const presetsMap: Record<"competition" | "practice" | "heavy", Record<string, { user_rate: string; ip_rate: string }>> = {
-      competition: {
-        "flag-submit": { user_rate: "10/min", ip_rate: "30/min" },
-        "login": { user_rate: "", ip_rate: "5/min" },
-      },
-      practice: {
-        "flag-submit": { user_rate: "30/min", ip_rate: "60/min" },
-        "login": { user_rate: "", ip_rate: "30/min" },
-      },
-      heavy: {
-        "flag-submit": { user_rate: "20/min", ip_rate: "100/min" },
-        "login": { user_rate: "", ip_rate: "15/min" },
-      },
-    };
-    const presets = presetsMap[preset];
+    if (!presetConfig?.presets || !presetConfig.presets[preset]) {
+      setError("Preset config not loaded or preset missing.");
+      return;
+    }
+    const presets = presetConfig.presets[preset];
 
     try {
-      // Apply each scope override
       for (const [s, rates] of Object.entries(presets)) {
         const r = await fetch("http://localhost:8000/api/ops/rate-limits", {
           method: "POST",
@@ -168,14 +173,13 @@ export default function OpsRateLimitsPage() {
             "Content-Type": "application/json",
             "X-CSRFToken": getCsrfToken(),
           },
-          body: JSON.stringify({ scope: s, user_rate: rates.user_rate, ip_rate: rates.ip_rate }),
+          body: JSON.stringify({ scope: s, user_rate: (rates as any).user_rate, ip_rate: (rates as any).ip_rate }),
         });
         if (!r.ok) {
           const d = await r.json().catch(() => ({}));
           throw new Error(d.detail || `Failed applying ${preset} preset for scope ${s} (HTTP ${r.status})`);
         }
       }
-      // Refresh payload
       const rr = await fetch("http://localhost:8000/api/ops/rate-limits", { credentials: "include" });
       const dd = await rr.json().catch(() => ({}));
       if (!rr.ok) throw new Error(dd.detail || `HTTP ${rr.status}`);
@@ -189,21 +193,11 @@ export default function OpsRateLimitsPage() {
   const applyEnvPreset = async (env: "dev" | "staging" | "prod") => {
     setMsg(null);
     setError(null);
-    const envPresets: Record<"dev" | "staging" | "prod", Record<string, { user_rate: string; ip_rate: string }>> = {
-      dev: {
-        "flag-submit": { user_rate: "120/min", ip_rate: "240/min" },
-        "login": { user_rate: "", ip_rate: "60/min" },
-      },
-      staging: {
-        "flag-submit": { user_rate: "30/min", ip_rate: "60/min" },
-        "login": { user_rate: "", ip_rate: "15/min" },
-      },
-      prod: {
-        "flag-submit": { user_rate: "10/min", ip_rate: "30/min" },
-        "login": { user_rate: "", ip_rate: "5/min" },
-      },
-    };
-    const presets = envPresets[env];
+    if (!presetConfig?.env_presets || !presetConfig.env_presets[env]) {
+      setError("Environment preset config not loaded or preset missing.");
+      return;
+    }
+    const presets = presetConfig.env_presets[env];
 
     try {
       for (const [s, rates] of Object.entries(presets)) {
@@ -214,7 +208,7 @@ export default function OpsRateLimitsPage() {
             "Content-Type": "application/json",
             "X-CSRFToken": getCsrfToken(),
           },
-          body: JSON.stringify({ scope: s, user_rate: rates.user_rate, ip_rate: rates.ip_rate }),
+          body: JSON.stringify({ scope: s, user_rate: (rates as any).user_rate, ip_rate: (rates as any).ip_rate }),
         });
         if (!r.ok) {
           const d = await r.json().catch(() => ({}));
@@ -299,6 +293,48 @@ export default function OpsRateLimitsPage() {
         <p className="text-xs text-gray-600 mt-2">
           Environment presets are suggestions. Apply in each environment separately.
         </p>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-medium mb-2">Presets Editor</h2>
+        <p className="text-xs text-gray-600 mb-2">
+          Edit the presets JSON and save. Structure: {"{ presets: { ... }, env_presets: { ... } }"}.
+        </p>
+        <textarea
+          className="border w-full h-64 p-3 font-mono text-sm"
+          value={presetEditor}
+          onChange={(e) => setPresetEditor(e.target.value)}
+        />
+        <div className="mt-2">
+          <button
+            className="bg-indigo-600 text-white px-3 py-2 rounded"
+            onClick={async () => {
+              setMsg(null);
+              setError(null);
+              try {
+                const parsed = JSON.parse(presetEditor);
+                const r = await fetch("http://localhost:8000/api/ops/rate-limits/presets", {
+                  method: "POST",
+                  credentials: "include",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken(),
+                  },
+                  body: JSON.stringify(parsed),
+                });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+                setPresetConfig(d);
+                setPresetEditor(JSON.stringify(d, null, 2));
+                setMsg("Saved presets.");
+              } catch (e: any) {
+                setError(e.message || "Save presets failed.");
+              }
+            }}
+          >
+            Save presets
+          </button>
+        </div>
       </section>
 
       <section>
@@ -421,37 +457,3 @@ export default function OpsRateLimitsPage() {
       </section>
     </div>
   );
-}
-      </section>
-
-      <section>
-        <h2 className="text-lg font-medium mb-2">Cache State</h2>
-        <table className="min-w-full border">
-          <thead>
-            <tr className="bg-gray-50">
-              <th className="p-2 text-left">Scope</th>
-              <th className="p-2 text-left">User cached</th>
-              <th className="p-2 text-left">User value</th>
-              <th className="p-2 text-left">IP cached</th>
-              <th className="p-2 text-left">IP value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scopes.map((s) => (
-              <tr key={s} className="border-t">
-                <td className="p-2">{s}</td>
-                <td className="p-2">{data.cache[s]?.user_cached ? "yes" : "no"}</td>
-                <td className="p-2">{data.cache[s]?.user_value || "-"}</td>
-                <td className="p-2">{data.cache[s]?.ip_cached ? "yes" : "no"}</td>
-                <td className="p-2">{data.cache[s]?.ip_value || "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="text-xs text-gray-600 mt-2">
-          Cache entries reflect DB overrides cached for ~60s. Clearing cache will force immediate re-read of DB values.
-        </p>
-      </section>
-    </div>
-  );
-}
