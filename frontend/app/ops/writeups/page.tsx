@@ -174,6 +174,43 @@ export default function OpsWriteUpsPage() {
           >
             {loading ? "Loading…" : "Refresh"}
           </button>
+          <button
+            className="px-3 py-2 border rounded hover:bg-gray-50"
+            onClick={() => {
+              if (!rows || rows.length === 0) return;
+              const headers = ["id", "challenge_id", "challenge_title", "username", "title", "status", "moderation_notes", "created_at", "published_at"];
+              const lines = rows.map((w) => {
+                const vals = [
+                  String(w.id),
+                  String(w.challenge),
+                  String(w.challenge_title || ""),
+                  String(w.username || ""),
+                  (w.title || "").replace(/"/g, '""'),
+                  String(w.status || ""),
+                  (w.moderation_notes || "").replace(/"/g, '""'),
+                  new Date(w.created_at).toISOString(),
+                  w.published_at ? new Date(w.published_at).toISOString() : "",
+                ];
+                return vals.map((v) => `"${v}"`).join(",");
+              });
+              const csv = [headers.join(","), ...lines].join("\n");
+              const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `writeups-${status}${challengeId ? `-challenge-${challengeId}` : ""}-page-${page}.csv`;
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(() => {
+                URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+              }, 0);
+              notifySuccess("Exported current list CSV.");
+            }}
+            title="Export current list to CSV"
+          >
+            Export list CSV
+          </button>
         </div>
       </div>
 
