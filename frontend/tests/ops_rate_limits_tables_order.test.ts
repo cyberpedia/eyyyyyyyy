@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { ToastProvider } from "../components/ToastProvider";
 import OpsRateLimitsPage from "../app/ops/rate-limits/page";
 import { vi } from "vitest";
@@ -17,10 +17,16 @@ function setupFetch() {
   const defaults = {
     "flag-submit": "10/min",
     "flag-submit-ip": "30/min",
+    login: "5/min",
+    "login-ip": "5/min",
   };
   const effective = {
     "flag-submit": { user_rate: "10/min", ip_rate: "30/min" },
+    login: { user_rate: "5/min", ip_rate: "5/min" },
   };
+  const db_overrides = [
+    { scope: "flag-submit", user_rate: "10/min", ip_rate: "30/min", updated_at: new Date().toISOString() },
+  ];
   const presets = { presets: {}, env_presets: {} };
 
   const fetchMock = vi.fn((input: any, init?: any) => {
@@ -29,29 +35,26 @@ function setupFetch() {
     if (url === "/api/users/me" && method === "GET") {
       return Promise.resolve(jsonResponse({ isSuperuser: true, isStaff: true }));
     }
-    if (url === "/api/ops/rate-limits" && method === "GET") {
-      return Promise.resolve(jsonResponse({ defaults, db_overrides: [], effective, cache: {} }));
+    if (url?.startsWith("/api/ops/rate-limits") && method === "GET") {
+      return Promise.resolve(jsonResponse({ defaults, db_overrides, effective, cache: {} }));
     }
     if (url === "/api/ops/rate-limits/presets" && method === "GET") {
       return Promise.resolve(jsonResponse(presets));
     }
     return Promise.resolve(jsonResponse({ detail: "Not found" }, 404));
   });
+
   // @ts-ignore
   global.fetch = fetchMock;
   return fetchMock;
 }
 
-describe("Ops Rate Limits auto-refresh countdown", () => {
+describe("Ops Rate Limits tables", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    if (typeof window !== "undefined") {
-      window.localStorage.clear();
-    }
   });
 
-  it("counts down from 30s to 29s and 28s when enabled", async () => {
-    vi.useFakeTimers();
+  it("shows flag-submit in both Effective Rates and DB Overrides sections", async () => {
     setupFetch();
 
     render(
@@ -62,27 +65,27 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
 
     await screen.findByText(/Rate Limits \(Ops\)/);
 
-    // Enable auto-refresh and set interval to 30s
-    const checkbox = screen.getByRole("checkbox");
-    fireEvent.click(checkbox);
-    const intervalSelect = screen.getByTitle("Auto-refresh interval");
-    fireEvent.change(intervalSelect, { target: { value: "30000" } });
+    const occurrences = await screen.findAllByText("flag-submit");
+    // Expect two occurrences: one in each table
+    expect(occurrences.length).toBeGreaterThanOrEqual(2);
 
-    const el = await screen.findByText(/Next refresh in:/);
-    expect(el.textContent).toContain("30s");
+    // Identify which section each belongs to
+    const sections = occurrences.map((el) => {
+      const row = el.closest("tr")!;
+      const section = row.closest("section")!;
+      const heading = section.querySelector("h2")!;
+      return heading.textContent || "";
+    });
 
-    // Advance 1 second
-    vi.advanceTimersByTime(1000);
+    // Should contain both section headings
+    expect(sections).toContain("Effective Rates");
+    expect(sections).toContain("DB Overrides");
 
-    // Countdown should update to 29s
-    const el2 = await screen.findByText(/Next refresh in:/);
-    expect(el2.textContent).toContain("29s");
-
-    // Advance another second
-    vi.advanceTimersByTime(1000);
-
-    // Countdown should update to 28s
-    const el3 = await screen.findByText(/Next refresh in:/);
-    expect(el3.textContent).toContain("28s");
+    // For completeness, verify each row has a Clear cache button
+    for (const el of occurrences) {
+      const row = el.closest("tr")!;
+      const clearBtn = within(row).getByRole("button", { name: /Clear cache/i });
+      expect(clearBtn).toBeTruthy();
+    }
   });
 });

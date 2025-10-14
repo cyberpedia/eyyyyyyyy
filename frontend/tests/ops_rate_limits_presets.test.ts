@@ -106,6 +106,17 @@ describe("Ops Rate Limits presets flows", () => {
     expect((saveBtn as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("Shows presets editor notice for non-superuser", async () => {
+    setupFetch(false);
+    render(
+      <ToastProvider>
+        <OpsRateLimitsPage />
+      </ToastProvider>
+    );
+    await screen.findByText(/Rate Limits \(Ops\)/);
+    await screen.findByText(/only superusers can save changes to the presets configuration/i);
+  });
+
   it("Save Presets success triggers reload and success toast", async () => {
     const fetchMock = setupFetch(true);
     render(
