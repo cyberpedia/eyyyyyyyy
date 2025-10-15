@@ -36,5 +36,6 @@ urlpatterns = [
     path("instances/my", InstancesMyView.as_view()),
     # Admin
     path("admin/challenges", AdminChallengeListCreateView.as_view()),
-    path("admin/challenge/<sint:id>", AdminChallengeDetailView.as_view()),
-    path("admin/ch
+    path("admin/challenges/<int:id>", AdminChallengeDetailView.as_view()),
+    path("admin/challenges/<int:id>/snapshot", AdminChallengeSnapshotView.as_view()),
+]

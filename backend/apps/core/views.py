@@ -20,6 +20,9 @@ from django.http import HttpResponse
 
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
+from .models import UiConfig
+from .serializers import UiConfigSerializer
+
 from .models import Team, Membership, RateLimitConfig
 from .serializers import (
     RegisterSerializer,
@@ -483,3 +486,31 @@ class MetricsView(APIView):
         # Expose Prometheus metrics
         data = generate_latest()
         return HttpResponse(data, content_type=CONTENT_TYPE_LATEST)
+
+
+class UiConfigView(APIView):
+    """
+    GET: public (AllowAny) - returns current UI config.
+    POST: admin-only - updates UI config (challenge_list_layout).
+    """
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            return [permissions.AllowAny()]
+        return [permissions.IsAdminUser()]
+
+    def get(self, request):
+        obj = UiConfig.objects.first()
+        if not obj:
+            obj = UiConfig(challenge_list_layout=UiConfig.LAYOUT_LIST)
+        return Response(UiConfigSerializer(obj).data)
+
+    def post(self, request):
+        obj, _ = UiConfig.objects.get_or_create(singleton=True, defaults={"challenge_list_layout": UiConfig.LAYOUT_LIST})
+        layout = (request.data.get("challenge_list_layout") or "").strip()
+        valid = dict(UiConfig.LAYOUT_CHOICES).keys()
+        if layout not in valid:
+            return Response({"detail": f"invalid layout. valid: {', '.join(valid)}"}, status=status.HTTP_400_BAD_REQUEST)
+        obj.challenge_list_layout = layout
+        obj.save(update_fields=["challenge_list_layout", "updated_at"])
+        return Response(UiConfigSerializer(obj).data)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import Team, Membership
+from .models import Team, Membership, UiConfig
 
 User = get_user_model()
 
@@ -85,3 +85,9 @@ class TeamCreateSerializer(serializers.ModelSerializer):
         team = Team.objects.create(captain=user, **validated_data)
         Membership.objects.create(user=user, team=team, role=Membership.ROLE_CAPTAIN)
         return team
+
+
+class UiConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UiConfig
+        fields = ["challenge_list_layout"]

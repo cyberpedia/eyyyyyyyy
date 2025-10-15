@@ -112,3 +112,29 @@ class RateLimitConfig(models.Model):
 
     def __str__(self) -> str:
         return f"{self.scope}: user={self.user_rate or '-'} ip={self.ip_rate or '-'}"
+
+
+class UiConfig(models.Model):
+    """
+    Global UI configuration controlled via Django admin:
+    - challenge_list_layout: how the Challenges page renders (list|grid|tabs|cards).
+    Use a singleton row (singleton flag ensures one row).
+    """
+
+    LAYOUT_LIST = "list"
+    LAYOUT_GRID = "grid"
+    LAYOUT_TABS = "tabs"
+    LAYOUT_CARDS = "cards"
+    LAYOUT_CHOICES = [
+        (LAYOUT_LIST, "List"),
+        (LAYOUT_GRID, "Grid"),
+        (LAYOUT_TABS, "Tabs (by category)"),
+        (LAYOUT_CARDS, "Cards"),
+    ]
+
+    singleton = models.BooleanField(default=True, unique=True)
+    challenge_list_layout = models.CharField(max_length=16, choices=LAYOUT_CHOICES, default=LAYOUT_LIST)
+    updated_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self) -> str:
+        return f"UI Config (challenge_list_layout={self.challenge_list_layout})"

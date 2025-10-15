@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Team, Membership, ScoreEvent, AuditLog, RateLimitConfig
+from .models import Team, Membership, ScoreEvent, AuditLog, RateLimitConfig, UiConfig
 
 
 @admin.register(Team)
@@ -31,3 +31,19 @@ class AuditLogAdmin(admin.ModelAdmin):
 class RateLimitConfigAdmin(admin.ModelAdmin):
     list_display = ("scope", "user_rate", "ip_rate", "updated_at")
     search_fields = ("scope",)
+
+
+@admin.register(UiConfig)
+class UiConfigAdmin(admin.ModelAdmin):
+    list_display = ("challenge_list_layout", "updated_at")
+    readonly_fields = ()
+    fieldsets = (
+        (None, {"fields": ("challenge_list_layout",)}),
+    )
+
+    def has_add_permission(self, request):
+        # Enforce singleton
+        count = UiConfig.objects.count()
+        if count >= 1:
+            return False
+        return super().has_add_permission(request)

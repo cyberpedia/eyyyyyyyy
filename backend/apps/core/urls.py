@@ -19,6 +19,7 @@ from .views import (
     HealthzView,
     ReadinessView,
     MetricsView,
+    UiConfigView,
 )
 
 urlpatterns = [
@@ -41,4 +42,6 @@ urlpatterns = [
     path("healthz", HealthzView.as_view()),
     path("readiness", ReadinessView.as_view()),
     path("metrics", MetricsView.as_view()),
+    # UI config
+    path("ui/config", UiConfigView.as_view()),
 ]

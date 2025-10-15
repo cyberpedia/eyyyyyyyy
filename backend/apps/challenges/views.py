@@ -116,7 +116,13 @@ class FlagSubmitView(APIView):
                 # Metrics
                 try:
                     flag_submissions_total.labels(correct="false").inc()
-                except Exception              "first_blood": False,
+                except Exception:
+                    pass
+                return Response(
+                    {
+                        "correct": False,
+                        "points_awarded": 0,
+                        "first_blood": False,
                         "challenge_id": challenge.id,
                         "team_total": team.score,
                         "message": "Incorrect flag.",
@@ -131,10 +137,7 @@ class FlagSubmitView(APIView):
             # First blood check
             first_blood_exists = Submission.objects.filter(challenge=challenge, is_correct=True).exists()
             first_blood = not first_blood_exists
-            if first_blood:
-                fb_bonus = round(challenge.points_max * 0.10)
-            else:
-                fb_bonus = 0
+            fb_bonus = round(challenge.points_max * 0.10) if first_blood else 0
 
             Submission.objects.create(
                 user=request.user,
@@ -176,7 +179,11 @@ class FlagSubmitView(APIView):
         return Response(
             {
                 "correct": True,
-                "points_awarded": points_awarded + fb_bonus           "message": "Correct!",
+                "points_awarded": points_awarded + fb_bonus,
+                "first_blood": first_blood,
+                "challenge_id": challenge.id,
+                "team_total": team_total,
+                "message": "Correct!",
             }
         )
 

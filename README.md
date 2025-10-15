@@ -76,6 +76,10 @@ Content and Moderation
 - Frozen challenge snapshots:
   - Admin can snapshot a challenge’s current state for freeze/moderation history:
     - POST http://localhost:8000/api/admin/challenges/<id>/snapshot (body: {reason: freeze|moderation|manual})
+- Challenge list layout (Admin-configurable):
+  - In Django admin → UI Config, set challenge list layout to List, Grid, Tabs (by category), or Cards
+  - Frontend Challenges page renders according to this setting
+  - API: GET/POST http://localhost:8000/api/ui/config (POST requires staff admin)
 
 Ops (Rate limits viewer)
 - Frontend page: http://localhost:3000/ops/rate-limits (requires staff user in session)
