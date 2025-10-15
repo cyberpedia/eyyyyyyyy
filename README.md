@@ -155,6 +155,8 @@ Observability
 Operator (Kubernetes)
 - CRDs: docs/k8s/crds/*
 - Dev operator command: docker compose exec backend python manage.py run_k8s_operator --namespace <ns>
+- Helm chart for operator: infra/helm/ctf-operator
+  - helm upgrade --install ctf-operator infra/helm/ctf-operator -n ctf --create-namespace
 - See docs/k8s/operator.md for behavior and production notes.
 
 CI

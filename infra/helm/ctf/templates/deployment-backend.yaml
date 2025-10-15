@@ -24,6 +24,8 @@ spec:
         - name: backend
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["daphne"]
+          args: ["-b", "0.0.0.0", "-p", "8000", "ctfplatform.asgi:application"]
           env:
             {{- range $key, $value := .Values.env }}
             - name: {{ $key }}
@@ -34,13 +36,13 @@ spec:
               containerPort: 8000
           readinessProbe:
             httpGet:
-              path: /api/leaderboard
+              path: /api/readiness
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /api/leaderboard
+              path: /api/healthz
               port: http
             initialDelaySeconds: 15
             periodSeconds: 20

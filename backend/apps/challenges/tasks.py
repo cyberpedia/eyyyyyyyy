@@ -8,6 +8,7 @@ import requests
 from celery import shared_task
 from django.db import transaction
 from django.utils import timezone
+from .checkers import get_checker
 
 from apps.core.models import ScoreEvent
 from .models import (
@@ -31,48 +32,18 @@ def _http_probe(url: str, timeout: float = 3.0) -> Tuple[bool, Optional[str]]:
 
 def _run_checker(instance: TeamServiceInstance, config: dict) -> bool:
     """
-    Simple health checker:
-    - If config has 'health_path', append to endpoint_url before probing.
-    - Returns True if 200 OK.
+    Delegate to pluggable checker (default HttpChecker).
     """
-    if not instance.endpoint_url:
-        return False
-    path = (config or {}).get("health_path", "")
-    url = instance.endpoint_url.rstrip("/") + ("/" + path.lstrip("/") if path else "")
-    ok, _ = _http_probe(url)
-    return ok
+    checker = get_checker(config or {})
+    return checker.health_ok(instance, config or {})
 
 
 def _compute_koth_owner(instances: List[TeamServiceInstance], config: dict) -> Optional[int]:
     """
-    Determine KotH owner by probing each instance for a proof keyword.
-    - If config['proof_path'] is set, append to endpoint_url.
-    - If config['proof_keyword'] is set (e.g., 'owned_by:'), parse team id from response.
-    - Fallback: first healthy instance wins ownership.
+    Delegate KotH ownership detection to pluggable checker (default HttpChecker).
     """
-    proof_path = (config or {}).get("proof_path", "")
-    keyword = (config or {}).get("proof_keyword", "owned_by:")
-    for inst in instances:
-        if not inst.endpoint_url:
-            continue
-        url = inst.endpoint_url.rstrip("/") + ("/" + proof_path.lstrip("/") if proof_path else "")
-        ok, body = _http_probe(url)
-        inst.last_check_at = timezone.now()
-        inst.save(update_fields=["last_check_at"])
-        if ok:
-            # Try keyword parse
-            if body and keyword in body:
-                try:
-                    # Expect format 'owned_by:<team_id>'
-                    idx = body.find(keyword)
-                    tid = int(body[idx + len(keyword) :].strip().split()[0])
-                    if tid == inst.team_id:
-                        return tid
-                except Exception:
-                    pass
-            # Fallback: healthy instance implies ownership by its team
-            return inst.team_id
-    return None
+    checker = get_checker(config or {})
+    return checker.koth_owner(instances, config or {})
 
 
 def mint_defense_token(team_id: int, challenge: ChallengeModel, instance: Optional[TeamServiceInstance], tick_index: int) -> DefenseToken:
