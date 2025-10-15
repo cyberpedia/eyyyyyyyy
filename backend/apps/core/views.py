@@ -491,7 +491,7 @@ class MetricsView(APIView):
 class UiConfigView(APIView):
     """
     GET: public (AllowAny) - returns current UI config.
-    POST: admin-only - updates UI config (challenge_list_layout).
+    POST: admin-only - updates UI config (challenge_list_layout and optional layout_by_category mapping).
     """
 
     def get_permissions(self):
@@ -506,11 +506,34 @@ class UiConfigView(APIView):
         return Response(UiConfigSerializer(obj).data)
 
     def post(self, request):
+        from apps.challenges.models import Category
+
         obj, _ = UiConfig.objects.get_or_create(singleton=True, defaults={"challenge_list_layout": UiConfig.LAYOUT_LIST})
-        layout = (request.data.get("challenge_list_layout") or "").strip()
+        payload = request.data or {}
+        layout = (payload.get("challenge_list_layout") or "").strip()
         valid = dict(UiConfig.LAYOUT_CHOICES).keys()
-        if layout not in valid:
+        if layout and layout not in valid:
             return Response({"detail": f"invalid layout. valid: {', '.join(valid)}"}, status=status.HTTP_400_BAD_REQUEST)
-        obj.challenge_list_layout = layout
-        obj.save(update_fields=["challenge_list_layout", "updated_at"])
+
+        overrides = payload.get("layout_by_category", {}) or {}
+        # Validate override values
+        cleaned = {}
+        for slug, ov in overrides.items():
+            if not isinstance(slug, str):
+                continue
+            l = (ov or "").strip()
+            if not l:
+                # blank override -> remove override
+                continue
+            if l not in valid:
+                return Response({"detail": f"invalid layout '{l}' for category '{slug}'"}, status=status.HTTP_400_BAD_REQUEST)
+            # Optional: ensure category exists
+            if not Category.objects.filter(slug=slug).exists():
+                return Response({"detail": f"unknown category slug '{slug}'"}, status=status.HTTP_400_BAD_REQUEST)
+            cleaned[slug] = l
+
+        if layout:
+            obj.challenge_list_layout = layout
+        obj.layout_by_category = cleaned
+        obj.save(update_fields=["challenge_list_layout", "layout_by_category", "updated_at"])
         return Response(UiConfigSerializer(obj).data)

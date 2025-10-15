@@ -22,6 +22,7 @@ class TagSerializer(serializers.ModelSerializer):
 
 class ChallengeListItemSerializer(serializers.ModelSerializer):
     category = serializers.SerializerMethodField()
+    category_slug = serializers.SerializerMethodField()
     points_current = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
     solved = serializers.SerializerMethodField()
@@ -33,6 +34,7 @@ class ChallengeListItemSerializer(serializers.ModelSerializer):
             "title",
             "slug",
             "category",
+            "category_slug",
             "points_current",
             "points_min",
             "points_max",
@@ -45,6 +47,9 @@ class ChallengeListItemSerializer(serializers.ModelSerializer):
 
     def get_category(self, obj):
         return obj.category.name if obj.category else None
+
+    def get_category_slug(self, obj):
+        return obj.category.slug if obj.category else None
 
     def get_points_current(self, obj):
         return obj.current_points()

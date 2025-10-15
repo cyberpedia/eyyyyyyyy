@@ -24,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <a href="/koth/1" className="hover:underline">KotH</a>
                 <a href="/ops/rate-limits" className="hover:underline">Ops Rate Limits</a>
                 <a href="/ops/writeups" className="hover:underline">Ops Write-ups</a>
+                <a href="/ops/ui-config" className="hover:underline">Ops UI Config</a>
                 <a href="/ops/settings" className="hover:underline">Ops Settings</a>
               </nav>
               <div className="ml-6 flex items-center gap-4">

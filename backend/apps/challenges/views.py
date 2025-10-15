@@ -33,6 +33,7 @@ from .serializers import (
     SubmissionRequestSerializer,
     SubmissionResponseSerializer,
     ChallengeAdminSerializer,
+    CategorySerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -245,6 +246,15 @@ class LeaderboardView(APIView):
                 last_score = score
             results.append({"rank": rank, "team_id": row["id"], "team_name": row["name"], "score": score})
         return Response({"as_of": timezone.now(), "results": results})
+
+
+class CategoriesListView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        rows = Category.objects.all().order_by("name")
+        data = CategorySerializer(rows, many=True).data
+        return Response({"results": data})
 
 
 # --- Attack-Defense endpoints ---

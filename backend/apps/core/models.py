@@ -117,7 +117,9 @@ class RateLimitConfig(models.Model):
 class UiConfig(models.Model):
     """
     Global UI configuration controlled via Django admin:
-    - challenge_list_layout: how the Challenges page renders (list|grid|tabs|cards).
+    - challenge_list_layout: how the Challenges page renders
+      (list|grid|tabs|cards|masonry|grouped_tags|collapsible).
+    - layout_by_category: optional overrides per category slug -> layout.
     Use a singleton row (singleton flag ensures one row).
     """
 
@@ -125,15 +127,22 @@ class UiConfig(models.Model):
     LAYOUT_GRID = "grid"
     LAYOUT_TABS = "tabs"
     LAYOUT_CARDS = "cards"
+    LAYOUT_MASONRY = "masonry"
+    LAYOUT_GROUPED_TAGS = "grouped_tags"
+    LAYOUT_COLLAPSIBLE = "collapsible"
     LAYOUT_CHOICES = [
         (LAYOUT_LIST, "List"),
         (LAYOUT_GRID, "Grid"),
         (LAYOUT_TABS, "Tabs (by category)"),
         (LAYOUT_CARDS, "Cards"),
+        (LAYOUT_MASONRY, "Masonry"),
+        (LAYOUT_GROUPED_TAGS, "Grouped by Tags"),
+        (LAYOUT_COLLAPSIBLE, "Collapsible Categories"),
     ]
 
     singleton = models.BooleanField(default=True, unique=True)
-    challenge_list_layout = models.CharField(max_length=16, choices=LAYOUT_CHOICES, default=LAYOUT_LIST)
+    challenge_list_layout = models.CharField(max_length=32, choices=LAYOUT_CHOICES, default=LAYOUT_LIST)
+    layout_by_category = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self) -> str:

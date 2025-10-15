@@ -108,6 +108,17 @@ Ops (Rate limits viewer)
 - Edge rate-limit templates:
   - Cloudflare: infra/cloudflare/rate-limits.md
 
+Ops (UI Config)
+- Frontend page: http://localhost:3000/ops/ui-config (requires staff)
+- Configure global Challenges layout and per-category overrides:
+  - Global options: List, Grid, Tabs (by category), Cards, Masonry, Grouped by Tags, Collapsible Categories
+  - Per-category: set a specific layout or inherit global
+- Backend API:
+  - GET http://localhost:8000/api/ui/config
+  - POST http://localhost:8000/api/ui/config (admin-only; CSRF required)
+- Categories list API:
+  - GET http://localhost:8000/api/categories
+
 Ops (Settings)
 - Frontend page: http://localhost:3000/ops/settings
 - Manage UI theme (light/dark) and code highlighting theme (light/dark)
