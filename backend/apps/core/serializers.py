@@ -90,4 +90,4 @@ class TeamCreateSerializer(serializers.ModelSerializer):
 class UiConfigSerializer(serializers.ModelSerializer):
     class Meta:
         model = UiConfig
-        fields = ["challenge_list_layout", "layout_by_category"]
+        fields = ["challenge_list_layout", "layout_by_category", "layout_by_tag"]

@@ -257,6 +257,16 @@ class CategoriesListView(APIView):
         return Response({"results": data})
 
 
+class TagsListView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        rows = Tag.objects.all().order_by("name")
+        from .serializers import TagSerializer as _TagSerializer
+        data = _TagSerializer(rows, many=True).data
+        return Response({"results": data})
+
+
 # --- Attack-Defense endpoints ---
 
 class ADSubmitView(APIView):

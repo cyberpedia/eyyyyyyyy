@@ -12,6 +12,7 @@ from .views import (
     ADServicesStatusView,
     ADSubmitView,
     CategoriesListView,
+    TagsListView,
     KothStatusView,
     KothOwnershipHistoryView,
     InstancesSpawnView,
@@ -25,6 +26,7 @@ urlpatterns = [
     path("challenges/<int:id>/submit", FlagSubmitView.as_view()),
     path("leaderboard", LeaderboardView.as_view()),
     path("categories", CategoriesListView.as_view()),
+    path("tags", TagsListView.as_view()),
     # Attack-Defense
     path("ad/<int:id>/submit", ADSubmitView.as_view()),
     path("ad/<int:id>/attack-log", ADAttackLogView.as_view()),

@@ -120,6 +120,7 @@ class UiConfig(models.Model):
     - challenge_list_layout: how the Challenges page renders
       (list|grid|tabs|cards|masonry|grouped_tags|collapsible).
     - layout_by_category: optional overrides per category slug -> layout.
+    - layout_by_tag: optional overrides per tag name -> layout (applies to grouped_tags view).
     Use a singleton row (singleton flag ensures one row).
     """
 
@@ -143,6 +144,7 @@ class UiConfig(models.Model):
     singleton = models.BooleanField(default=True, unique=True)
     challenge_list_layout = models.CharField(max_length=32, choices=LAYOUT_CHOICES, default=LAYOUT_LIST)
     layout_by_category = models.JSONField(default=dict, blank=True)
+    layout_by_tag = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self) -> str:

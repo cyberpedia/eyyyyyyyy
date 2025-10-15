@@ -150,27 +150,59 @@ export default function ChallengesPage() {
 
       {layout === "grouped_tags" && (
         <div className="space-y-6">
-          {tagsGroups.map(([tag, items]) => (
-            <section key={tag}>
-              <h2 className="text-lg font-medium mb-2">{tag} ({items.length})</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {items.map((c) => (
-                  <a key={c.id} href={`/challenges/${c.id}`} className="border rounded p-4 hover:shadow transition-shadow">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="text-lg font-medium">{c.title}</div>
-                        <div className="text-xs text-gray-600">{c.category || "Uncategorized"}</div>
-                      </div>
-                      <div className="text-sm">{c.points_current} pts</div>
-                    </div>
-                    {c.tags.length > 0 && (
-                      <div className="mt-2 text-xs text-gray-600 truncate">Tags: {c.tags.join(", ")}</div>
-                    )}
-                  </a>
-                ))}
-              </div>
-            </section>
-          ))}
+          {tagsGroups.map(([tag, items]) => {
+            const ov = ui.layout_by_tag?.[tag] || null;
+            const containerClass =
+              ov === "masonry"
+                ? "columns-1 sm:columns-2 lg:columns-3 gap-3"
+                : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3";
+            return (
+              <section key={tag}>
+                <h2 className="text-lg font-medium mb-2">
+                  {tag} ({items.length})
+                </h2>
+                {ov === "list" ? (
+                  <ul className="space-y-2">
+                    {items.map((c) => (
+                      <li key={c.id} className="border rounded p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <a className="text-lg font-medium hover:underline" href={`/challenges/${c.id}`}>{c.title}</a>
+                            <div className="text-sm text-gray-600">{c.category || "Uncategorized"}</div>
+                          </div>
+                          <div className="text-sm">{c.points_current} pts</div>
+                        </div>
+                        {c.tags.length > 0 && (
+                          <div className="mt-2 text-xs text-gray-600">Tags: {c.tags.join(", ")}</div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className={containerClass}>
+                    {items.map((c) => (
+                      <a
+                        key={c.id}
+                        href={`/challenges/${c.id}`}
+                        className={`${ov === "masonry" ? "inline-block w-full break-inside-avoid" : ""} border rounded p-4 hover:shadow transition-shadow`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="text-lg font-medium">{c.title}</div>
+                            <div className="text-xs text-gray-600">{c.category || "Uncategorized"}</div>
+                          </div>
+                          <div className="text-sm">{c.points_current} pts</div>
+                        </div>
+                        {c.tags.length > 0 && (
+                          <div className="mt-2 text-xs text-gray-600 truncate">Tags: {c.tags.join(", ")}</div>
+                        )}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })}
         </div>
       )}
 
