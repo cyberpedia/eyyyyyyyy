@@ -4,7 +4,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
+    // Only pick TSX suites by glob; add the two TS utility tests explicitly.
+    include: ["tests/**/*.test.tsx", "tests/ratelimits.test.ts", "tests/ws.test.ts"],
   },
   esbuild: {
     jsx: "automatic",

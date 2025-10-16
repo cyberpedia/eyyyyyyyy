@@ -179,8 +179,6 @@ export default function OpsRateLimitsPage() {
     if (!data) return;
     const defaults = data.defaults || {};
     const effective = data.effective || {};
-    // Lazy import to avoid client bundling conflicts if needed
-    const { computeDryRunRows } = require("../../../components/ratelimits");
     const rows: DryRow[] = computeDryRunRows(effective as any, defaults as any, overrides as any);
     setDryRunRows(rows);
     setDryRunOverrides(overrides);
