@@ -3,11 +3,16 @@ import { ToastProvider } from "../components/ToastProvider";
 import OpsRateLimitsPage from "../app/ops/rate-limits/page";
 import { vi } from "vitest";
 
-// Mock next/navigation useRouter to avoid Next App Router invariant during tests
-const pushMock = vi.fn();
+// Safe mock: don't reference external variables inside factory (avoids TDZ/hoist issues)
 vi.mock("next/navigation", () => {
   return {
-    useRouter: () => ({ push: pushMock }),
+    useRouter: () => ({
+      push: vi.fn(),
+      replace: vi.fn(),
+      refresh: vi.fn(),
+      prefetch: vi.fn(),
+      back: vi.fn(),
+    }),
   };
 });
 

@@ -3,11 +3,16 @@ import { ToastProvider } from "../components/ToastProvider";
 import OpsRateLimitsPage from "../app/ops/rate-limits/page";
 import { vi } from "vitest";
 
-// Mock next/navigation useRouter for client component rendering
-const pushMock = vi.fn();
+// Safe mock for next/navigation useRouter
 vi.mock("next/navigation", () => {
   return {
-    useRouter: () => ({ push: pushMock }),
+    useRouter: () => ({
+      push: vi.fn(),
+      replace: vi.fn(),
+      refresh: vi.fn(),
+      prefetch: vi.fn(),
+      back: vi.fn(),
+    }),
   };
 });
 

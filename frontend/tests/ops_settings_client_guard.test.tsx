@@ -1,14 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import OpsSettingsPage from "../app/ops/settings/page";
 import { vi } from "vitest";
-
-// Mock next/navigation useRouter
-const pushMock = vi.fn();
-vi.mock("next/navigation", () => {
-  return {
-    useRouter: () => ({ push: pushMock }),
-  };
-});
+import { useRouter } from "next/navigation";
 
 type JsonResp = { ok: boolean; status: number; json: () => Promise<any> };
 
@@ -23,7 +16,8 @@ function jsonResponse(data: any, status = 200): JsonResp {
 describe("Ops Settings client-side guard", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    pushMock.mockReset();
+    const { push } = useRouter() as any;
+    push.mockReset?.();
   });
 
   it("redirects non-staff to /login via client guard", async () => {
@@ -41,7 +35,8 @@ describe("Ops Settings client-side guard", () => {
     // Allow effects to run
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(pushMock).toHaveBeenCalledWith("/login");
+    const { push } = useRouter() as any;
+    expect(push).toHaveBeenCalledWith("/login");
   });
 
   it("does not redirect for staff user", async () => {
@@ -58,7 +53,8 @@ describe("Ops Settings client-side guard", () => {
 
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(pushMock).not.toHaveBeenCalled();
+    const { push } = useRouter() as any;
+    expect(push).not.toHaveBeenCalled();
     // Page content should render (e.g., heading)
     expect(screen.getByText(/Ops Settings/i)).toBeTruthy();
   });

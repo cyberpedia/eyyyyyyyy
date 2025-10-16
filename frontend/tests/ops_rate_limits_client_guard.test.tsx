@@ -1,14 +1,7 @@
 import { render } from "@testing-library/react";
 import OpsRateLimitsPage from "../app/ops/rate-limits/page";
 import { vi } from "vitest";
-
-// Mock next/navigation useRouter
-const pushMock = vi.fn();
-vi.mock("next/navigation", () => {
-  return {
-    useRouter: () => ({ push: pushMock }),
-  };
-});
+import { useRouter } from "next/navigation";
 
 type JsonResp = { ok: boolean; status: number; json: () => Promise<any> };
 
@@ -23,7 +16,9 @@ function jsonResponse(data: any, status = 200): JsonResp {
 describe("Ops Rate Limits client-side guard", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    pushMock.mockReset();
+    // reset mocked router push
+    const { push } = useRouter() as any;
+    push.mockReset?.();
   });
 
   it("redirects non-staff to /login via client guard", async () => {
@@ -47,7 +42,8 @@ describe("Ops Rate Limits client-side guard", () => {
 
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(pushMock).toHaveBeenCalledWith("/login");
+    const { push } = useRouter() as any;
+    expect(push).toHaveBeenCalledWith("/login");
   });
 
   it("does not redirect for staff user", async () => {
@@ -71,6 +67,7 @@ describe("Ops Rate Limits client-side guard", () => {
 
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(pushMock).not.toHaveBeenCalled();
+    const { push } = useRouter() as any;
+    expect(push).not.toHaveBeenCalled();
   });
 });
