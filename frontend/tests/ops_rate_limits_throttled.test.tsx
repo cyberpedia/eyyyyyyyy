@@ -139,7 +139,7 @@ describe("Ops Rate Limits throttled actions (HTTP 429)", () => {
     fireEvent.change(userInput, { target: { value: "12/min" } });
     fireEvent.change(ipInput, { target: { value: "40/min" } });
 
-    const saveBtn = screen.getByRole("button", { name: /Save/i });
+    const saveBtn = screen.getByRole("button", { name: /^Save$/i });
     fireEvent.click(saveBtn);
 
     // Error toast
