@@ -43,6 +43,7 @@ class ChallengeListItemSerializer(serializers.ModelSerializer):
             "released_at",
             "mode",
             "tick_seconds",
+            "solved",
         ]
 
     def get_category(self, obj):

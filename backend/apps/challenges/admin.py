@@ -9,6 +9,7 @@ from .models import (
     DefenseToken,
     AttackEvent,
     OwnershipEvent,
+    RoundTick,
 )
 
 

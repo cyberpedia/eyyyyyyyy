@@ -209,6 +209,7 @@ export default function ChallengesPage() {
       {/* Per-category overrides rendering (non-tabs): render sections by category if overrides exist */}
       {layout !== "tabs" && ui.layout_by_category && Object.keys(ui.layout_by_category).length > 0 && (
         <div className="space-y-6">
+          {/* Sections for categories with overrides */}
           {Array.from(byCategory.entries()).map(([slug, entry]) => {
             const ov = ui.layout_by_category?.[slug] || null;
             if (!ov) return null;
@@ -259,6 +260,99 @@ export default function ChallengesPage() {
               </section>
             );
           })}
+          {/* Render remaining (non-overridden) categories using the global layout */}
+          {(() => {
+            const overridden = new Set(Object.keys(ui.layout_by_category || {}));
+            const rest = data.filter((c) => !overridden.has(c.category_slug || "uncategorized"));
+            if (rest.length === 0) return null;
+
+            if (layout === "list") {
+              return (
+                <section>
+                  <h2 className="text-lg font-medium mb-2">Other ({rest.length})</h2>
+                  <ul className="space-y-2">
+                    {rest.map((c) => (
+                      <li key={c.id} className="border rounded p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <a className="text-lg font-medium hover:underline" href={`/challenges/${c.id}`}>{c.title}</a>
+                            <div className="text-sm text-gray-600">{c.category || "Uncategorized"}</div>
+                          </div>
+                          <div className="text-sm">{c.points_current} pts</div>
+                        </div>
+                        {c.tags.length > 0 && (
+                          <div className="mt-2 text-xs text-gray-600">Tags: {c.tags.join(", ")}</div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              );
+            }
+
+            if (layout === "collapsible") {
+              const map = new Map<string, { name: string; items: typeof rest }>();
+              rest.forEach((c) => {
+                const slug = c.category_slug || "uncategorized";
+                const name = c.category || "Uncategorized";
+                const entry = map.get(slug) || { name, items: [] as any };
+                (entry.items as any).push(c);
+                map.set(slug, entry);
+              });
+              return (
+                <section>
+                  {[...map.entries()].map(([slug, entry]) => (
+                    <details key={slug} className="border rounded mb-3">
+                      <summary className="cursor-pointer px-4 py-2 font-medium">{entry.name} ({entry.items.length})</summary>
+                      <ul className="space-y-2 p-4">
+                        {entry.items.map((c: Challenge) => (
+                          <li key={c.id} className="border rounded p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <a className="text-lg font-medium hover:underline" href={`/challenges/${c.id}`}>{c.title}</a>
+                                <div className="text-sm text-gray-600">{c.category || "Uncategorized"}</div>
+                              </div>
+                              <div className="text-sm">{c.points_current} pts</div>
+                            </div>
+                            {c.tags.length > 0 && (
+                              <div className="mt-2 text-xs text-gray-600">Tags: {c.tags.join(", ")}</div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ))}
+                </section>
+              );
+            }
+
+            // grid/cards/masonry
+            const containerClass =
+              layout === "masonry"
+                ? "columns-1 sm:columns-2 lg:columns-3 gap-3"
+                : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3";
+            return (
+              <section>
+                <h2 className="text-lg font-medium mb-2">Other ({rest.length})</h2>
+                <div className={containerClass}>
+                  {rest.map((c) => (
+                    <a key={c.id} href={`/challenges/${c.id}`} className={`${layout === "masonry" ? "inline-block w-full break-inside-avoid" : ""} border rounded p-4 hover:shadow transition-shadow`}>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="text-lg font-medium">{c.title}</div>
+                          <div className="text-xs text-gray-600">{c.category || "Uncategorized"}</div>
+                        </div>
+                        <div className="text-sm">{c.points_current} pts</div>
+                      </div>
+                      {c.tags.length > 0 && (
+                        <div className="mt-2 text-xs text-gray-600 truncate">Tags: {c.tags.join(", ")}</div>
+                      )}
+                    </a>
+                  ))}
+                </div>
+              </section>
+            );
+          })()}
         </div>
       )}
 
