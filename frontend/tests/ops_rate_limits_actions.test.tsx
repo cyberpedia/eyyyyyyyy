@@ -142,6 +142,9 @@ describe("Ops Rate Limits actions", () => {
     const applyBtn = await screen.findByRole("button", { name: /Apply these changes/i });
     fireEvent.click(applyBtn);
 
+    // Wait for completion toast to ensure async posts finished
+    await screen.findByText(/Applied dry-run overrides\./i);
+
     // Expect POST to upsert overrides for each scope
     const postCalls = fetchMock.mock.calls.filter(
       (c) => c[0] === "/api/ops/rate-limits" && (c[1]?.method || "GET").toUpperCase() === "POST"
@@ -157,9 +160,6 @@ describe("Ops Rate Limits actions", () => {
     );
     expect(calledReloadRates).toBe(true);
     expect(calledReloadPresets).toBe(true);
-
-    // Success toast
-    await screen.findByText(/Applied dry-run overrides\./i);
   });
 
   it("Per-scope Clear cache posts to cache endpoint and shows success (DB overrides row)", async () => {
@@ -278,7 +278,7 @@ describe("Ops Rate Limits actions", () => {
     fireEvent.change(userInput, { target: { value: "12/min" } });
     fireEvent.change(ipInput, { target: { value: "40/min" } });
 
-    const saveBtn = screen.getByRole("button", { name: /Save/i });
+    const saveBtn = screen.getByRole("button", { name: /^Save$/i });
     fireEvent.click(saveBtn);
 
     // Ensure POST call was made with CSRF header and correct body
