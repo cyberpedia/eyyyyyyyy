@@ -230,6 +230,7 @@ export default function OpsUiConfigPage() {
         <h2 className="text-lg font-medium mb-2">Per-Tag Overrides (used by Grouped by Tags layout)</h2>
         <div className="text-xs text-gray-600 mb-2">
           Optional: choose a specific layout for a tag group when using the Grouped by Tags layout. Leave blank to inherit the default (grid).
+          You can also set an override for the special group <code>(Untagged)</code> which applies to challenges without tags.
         </div>
         <table className="min-w-full border">
           <thead>
@@ -239,6 +240,24 @@ export default function OpsUiConfigPage() {
             </tr>
           </thead>
           <tbody>
+            {/* Special Untagged row */}
+            <tr className="border-t">
+              <td className="p-2">(Untagged)</td>
+              <td className="p-2">
+                <select
+                  className="border rounded px-2 py-1"
+                  value={ui.layout_by_tag?.["(Untagged)"] || ""}
+                  onChange={(e) => setTagLayout("(Untagged)", e.target.value)}
+                >
+                  <option value="">(inherit)</option>
+                  {LAYOUT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </td>
+            </tr>
             {tags.map((tag) => {
               const ov = ui.layout_by_tag?.[tag.name] || "";
               return (

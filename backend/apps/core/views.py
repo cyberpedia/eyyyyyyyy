@@ -531,6 +531,7 @@ class UiConfigView(APIView):
             cleaned_cat[slug] = l
 
         # Tag overrides (tag name -> layout). Tag doesn't have a slug in this codebase.
+        # Allow a reserved special key "(Untagged)" to control the Untagged group in Grouped-by-Tags layout.
         tag_overrides = payload.get("layout_by_tag", {}) or {}
         cleaned_tag = {}
         for name, ov in tag_overrides.items():
@@ -541,7 +542,7 @@ class UiConfigView(APIView):
                 continue
             if l not in valid:
                 return Response({"detail": f"invalid layout '{l}' for tag '{name}'"}, status=status.HTTP_400_BAD_REQUEST)
-            if not Tag.objects.filter(name=name).exists():
+            if name != "(Untagged)" and not Tag.objects.filter(name=name).exists():
                 return Response({"detail": f"unknown tag '{name}'"}, status=status.HTTP_400_BAD_REQUEST)
             cleaned_tag[name] = l
 

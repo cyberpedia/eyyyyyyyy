@@ -122,6 +122,8 @@ Ops (UI Config)
   - GET http://localhost:8000/api/categories
   - GET http://localhost:8000/api/tags
   - GET http://localhost:8000/api/events
+- Special key:
+  - For Grouped by Tags layout you can set an override for challenges without tags using the reserved tag key "(Untagged)" in UiConfig.layout_by_tag.
 
 Ops (Settings)
 - Frontend page: http://localhost:3000/ops/settings

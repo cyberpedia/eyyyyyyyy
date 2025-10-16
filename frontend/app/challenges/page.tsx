@@ -51,7 +51,23 @@ export default function ChallengesPage() {
         const list = Array.isArray(chals.results) ? chals.results : chals;
         setData(list);
         setUi(uiCfg);
-        setEvents(evs.results || []);
+        const evList: EventRow[] = (evs.results || []) as EventRow[];
+        setEvents(evList);
+
+        // Default-select active event only if none selected yet
+        if (!selectedEvent && evList.length > 0) {
+          const now = new Date();
+          const active = evList.find((e) => {
+            const starts = e.starts_at ? new Date(e.starts_at) : null;
+            const ends = e.ends_at ? new Date(e.ends_at) : null;
+            const started = !starts || starts <= now;
+            const notEnded = !ends || ends >= now;
+            return started && notEnded;
+          });
+          if (active) {
+            setSelectedEvent(active.slug);
+          }
+        }
       })
       .catch((e) => {
         notifyError(e?.message || "Failed to load challenges.");
@@ -75,13 +91,14 @@ export default function ChallengesPage() {
     return data.filter((c) => (c.category || "Uncategorized") === activeTab);
   }, [activeTab, data]);
 
+  const UNTAGGED_LABEL = "(Untagged)";
   const tagsGroups = useMemo(() => {
     const map = new Map<string, Challenge[]>();
     data.forEach((c) => {
       if (c.tags.length === 0) {
-        const arr = map.get("Untagged") || [];
+        const arr = map.get(UNTAGGED_LABEL) || [];
         arr.push(c);
-        map.set("Untagged", arr);
+        map.set(UNTAGGED_LABEL, arr);
       } else {
         c.tags.forEach((t) => {
           const arr = map.get(t) || [];
@@ -320,12 +337,12 @@ export default function ChallengesPage() {
             }
 
             if (layout === "collapsible") {
-              const map = new Map<string, { name: string; items: typeof rest }>();
+              const map = new Map<string, { name: string; items: Challenge[] }>();
               rest.forEach((c) => {
                 const slug = c.category_slug || "uncategorized";
                 const name = c.category || "Uncategorized";
-                const entry = map.get(slug) || { name, items: [] as any };
-                (entry.items as any).push(c);
+                const entry = map.get(slug) || { name, items: [] as Challenge[] };
+                entry.items.push(c);
                 map.set(slug, entry);
               });
               return (

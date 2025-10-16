@@ -96,6 +96,19 @@ class UiConfigApiTests(TestCase):
         resp = self.client.post("/api/ui/config", payload, format="json")
         self.assertEqual(resp.status_code, 400)
 
+    def test_post_untagged_special(self):
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        admin = User.objects.create_user(username="admin8", email="h@h", password="password-strong-123456", is_staff=True, is_superuser=True)
+        self.client.force_authenticate(user=admin)
+
+        payload = {"layout_by_tag": {"(Untagged)": "list"}}
+        resp = self.client.post("/api/ui/config", payload, format="json")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["layout_by_tag"].get("(Untagged)"), "list")
+
     def test_post_unknown_event(self):
         from django.contrib.auth import get_user_model
 
