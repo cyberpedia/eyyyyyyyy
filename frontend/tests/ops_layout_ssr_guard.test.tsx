@@ -12,11 +12,12 @@ vi.mock("next/headers", () => {
   };
 });
 
-// Mock next/navigation redirect
-const redirectMock = vi.fn(() => {
-  throw new Error("REDIRECT");
-});
+// Mock next/navigation redirect safely without referencing a TDZ variable
+let redirectMock: ReturnType<typeof vi.fn>;
 vi.mock("next/navigation", () => {
+  redirectMock = vi.fn(() => {
+    throw new Error("REDIRECT");
+  });
   return {
     redirect: redirectMock,
   };

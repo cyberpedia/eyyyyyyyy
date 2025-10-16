@@ -3,6 +3,14 @@ import { ToastProvider } from "../components/ToastProvider";
 import OpsRateLimitsPage from "../app/ops/rate-limits/page";
 import { vi } from "vitest";
 
+// Mock next/navigation useRouter so component can render without Next router
+const pushMock = vi.fn();
+vi.mock("next/navigation", () => {
+  return {
+    useRouter: () => ({ push: pushMock }),
+  };
+});
+
 type JsonResp = { ok: boolean; status: number; json: () => Promise<any> };
 
 function jsonResponse(data: any, status = 200): JsonResp {
