@@ -6,8 +6,7 @@ import { useToast } from "../../../components/ToastProvider";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import rehypeSanitize from "rehype-sanitize";
-import { defaultSchema } from "hast-util-sanitize";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 
 const sanitizeSchema = {
   ...defaultSchema,
