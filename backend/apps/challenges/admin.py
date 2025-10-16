@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import (
     Category,
     Tag,
+    Event,
     Challenge,
     Submission,
     ChallengeSnapshot,
@@ -25,10 +26,16 @@ class TagAdmin(admin.ModelAdmin):
     search_fields = ("name",)
 
 
+@admin.register(Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "slug", "starts_at", "ends_at")
+    search_fields = ("name", "slug")
+
+
 @admin.register(Challenge)
 class ChallengeAdmin(admin.ModelAdmin):
-    list_display = ("id", "title", "slug", "category", "mode", "scoring_model", "points_max", "released_at")
-    list_filter = ("scoring_model", "category", "mode")
+    list_display = ("id", "title", "slug", "category", "event", "mode", "scoring_model", "points_max", "released_at")
+    list_filter = ("scoring_model", "category", "event", "mode")
     search_fields = ("title", "slug")
 
 

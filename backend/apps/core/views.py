@@ -506,7 +506,7 @@ class UiConfigView(APIView):
         return Response(UiConfigSerializer(obj).data)
 
     def post(self, request):
-        from apps.challenges.models import Category, Tag
+        from apps.challenges.models import Category, Tag, Event
 
         obj, _ = UiConfig.objects.get_or_create(singleton=True, defaults={"challenge_list_layout": UiConfig.LAYOUT_LIST})
         payload = request.data or {}
@@ -545,9 +545,25 @@ class UiConfigView(APIView):
                 return Response({"detail": f"unknown tag '{name}'"}, status=status.HTTP_400_BAD_REQUEST)
             cleaned_tag[name] = l
 
+        # Event overrides (event slug -> layout)
+        evt_overrides = payload.get("layout_by_event", {}) or {}
+        cleaned_evt = {}
+        for slug, ov in evt_overrides.items():
+            if not isinstance(slug, str):
+                continue
+            l = (ov or "").strip()
+            if not l:
+                continue
+            if l not in valid:
+                return Response({"detail": f"invalid layout '{l}' for event '{slug}'"}, status=status.HTTP_400_BAD_REQUEST)
+            if not Event.objects.filter(slug=slug).exists():
+                return Response({"detail": f"unknown event slug '{slug}'"}, status=status.HTTP_400_BAD_REQUEST)
+            cleaned_evt[slug] = l
+
         if layout:
             obj.challenge_list_layout = layout
         obj.layout_by_category = cleaned_cat
         obj.layout_by_tag = cleaned_tag
-        obj.save(update_fields=["challenge_list_layout", "layout_by_category", "layout_by_tag", "updated_at"])
+        obj.layout_by_event = cleaned_evt
+        obj.save(update_fields=["challenge_list_layout", "layout_by_category", "layout_by_tag", "layout_by_event", "updated_at"])
         return Response(UiConfigSerializer(obj).data)

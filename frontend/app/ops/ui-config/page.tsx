@@ -8,10 +8,12 @@ type UiConfig = {
   challenge_list_layout: "list" | "grid" | "tabs" | "cards" | "masonry" | "grouped_tags" | "collapsible";
   layout_by_category?: Record<string, string>;
   layout_by_tag?: Record<string, string>;
+  layout_by_event?: Record<string, string>;
 };
 
 type Category = { id: number; name: string; slug: string };
 type Tag = { id: number; name: string };
+type EventRow = { id: number; name: string; slug: string };
 
 const LAYOUT_OPTIONS = [
   { value: "list", label: "List" },
@@ -30,6 +32,7 @@ export default function OpsUiConfigPage() {
   const [ui, setUi] = useState<UiConfig | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -53,20 +56,24 @@ export default function OpsUiConfigPage() {
     try {
       setLoading(true);
       notify("info", "Loading UI config...");
-      const [uiRes, catRes, tagRes] = await Promise.all([
+      const [uiRes, catRes, tagRes, evRes] = await Promise.all([
         fetch("/api/ui/config", { credentials: "include" }),
         fetch("/api/categories", { credentials: "include" }),
         fetch("/api/tags", { credentials: "include" }),
+        fetch("/api/events", { credentials: "include" }),
       ]);
       const uiData = await uiRes.json().catch(() => ({}));
       const catData = await catRes.json().catch(() => ({}));
       const tagData = await tagRes.json().catch(() => ({}));
+      const evData = await evRes.json().catch(() => ({}));
       if (!uiRes.ok) throw new Error(uiData.detail || `Failed to load UI config (HTTP ${uiRes.status})`);
       if (!catRes.ok) throw new Error(catData.detail || `Failed to load categories (HTTP ${catRes.status})`);
       if (!tagRes.ok) throw new Error(tagData.detail || `Failed to load tags (HTTP ${tagRes.status})`);
+      if (!evRes.ok) throw new Error(evData.detail || `Failed to load events (HTTP ${evRes.status})`);
       setUi(uiData);
       setCategories(catData.results || []);
       setTags(tagData.results || []);
+      setEvents(evData.results || []);
       notifySuccess("Loaded UI config.");
     } catch (e: any) {
       notifyError(e?.message || "Load failed.");
@@ -106,6 +113,17 @@ export default function OpsUiConfigPage() {
     setUi({ ...ui, layout_by_tag: map });
   };
 
+  const setEventLayout = (slug: string, value: string) => {
+    if (!ui) return;
+    const map = { ...(ui.layout_by_event || {}) };
+    if (!value) {
+      delete map[slug];
+    } else {
+      map[slug] = value;
+    }
+    setUi({ ...ui, layout_by_event: map });
+  };
+
   const onSave = async () => {
     if (!ui) return;
     try {
@@ -118,6 +136,7 @@ export default function OpsUiConfigPage() {
           challenge_list_layout: ui.challenge_list_layout,
           layout_by_category: ui.layout_by_category || {},
           layout_by_tag: ui.layout_by_tag || {},
+          layout_by_event: ui.layout_by_event || {},
         }),
       });
       const d = await r.json().catch(() => ({}));
@@ -230,6 +249,47 @@ export default function OpsUiConfigPage() {
                       className="border rounded px-2 py-1"
                       value={ov}
                       onChange={(e) => setTagLayout(tag.name, e.target.value)}
+                    >
+                      <option value="">(inherit)</option>
+                      {LAYOUT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-medium mb-2">Per-Event Overrides</h2>
+        <div className="text-xs text-gray-600 mb-2">
+          Optional: choose a specific layout for each event. On the Challenges page, selecting an event will apply its override.
+        </div>
+        <table className="min-w-full border">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="p-2 text-left">Event</th>
+              <th className="p-2 text-left">Slug</th>
+              <th className="p-2 text-left">Override Layout</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((ev) => {
+              const ov = ui.layout_by_event?.[ev.slug] || "";
+              return (
+                <tr key={ev.slug} className="border-t">
+                  <td className="p-2">{ev.name}</td>
+                  <td className="p-2 text-xs">{ev.slug}</td>
+                  <td className="p-2">
+                    <select
+                      className="border rounded px-2 py-1"
+                      value={ov}
+                      onChange={(e) => setEventLayout(ev.slug, e.target.value)}
                     >
                       <option value="">(inherit)</option>
                       {LAYOUT_OPTIONS.map((opt) => (

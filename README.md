@@ -110,16 +110,18 @@ Ops (Rate limits viewer)
 
 Ops (UI Config)
 - Frontend page: http://localhost:3000/ops/ui-config (requires staff)
-- Configure global Challenges layout and per-category/per-tag overrides:
+- Configure global Challenges layout and per-category/per-tag/per-event overrides:
   - Global options: List, Grid, Tabs (by category), Cards, Masonry, Grouped by Tags, Collapsible Categories
   - Per-category: set a specific layout or inherit global
   - Per-tag: set a layout for each tag when using Grouped by Tags (inherit default grid if blank)
+  - Per-event: set a layout override for each event; the /challenges page will apply it when that event is selected
 - Backend API:
   - GET http://localhost:8000/api/ui/config
   - POST http://localhost:8000/api/ui/config (admin-only; CSRF required)
 - Lists for overrides:
   - GET http://localhost:8000/api/categories
   - GET http://localhost:8000/api/tags
+  - GET http://localhost:8000/api/events
 
 Ops (Settings)
 - Frontend page: http://localhost:3000/ops/settings

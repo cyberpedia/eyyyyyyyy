@@ -5,7 +5,7 @@ from typing import List
 from rest_framework import serializers
 
 from apps.core.models import Team
-from .models import Category, Tag, Challenge, Submission, hmac_flag
+from .models import Category, Tag, Event, Challenge, Submission, hmac_flag
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -20,9 +20,17 @@ class TagSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]
 
 
+class EventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Event
+        fields = ["id", "name", "slug", "starts_at", "ends_at"]
+
+
 class ChallengeListItemSerializer(serializers.ModelSerializer):
     category = serializers.SerializerMethodField()
     category_slug = serializers.SerializerMethodField()
+    event = serializers.SerializerMethodField()
+    event_slug = serializers.SerializerMethodField()
     points_current = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
     solved = serializers.SerializerMethodField()
@@ -35,6 +43,8 @@ class ChallengeListItemSerializer(serializers.ModelSerializer):
             "slug",
             "category",
             "category_slug",
+            "event",
+            "event_slug",
             "points_current",
             "points_min",
             "points_max",
@@ -51,6 +61,12 @@ class ChallengeListItemSerializer(serializers.ModelSerializer):
 
     def get_category_slug(self, obj):
         return obj.category.slug if obj.category else None
+
+    def get_event(self, obj):
+        return obj.event.name if obj.event else None
+
+    def get_event_slug(self, obj):
+        return obj.event.slug if obj.event else None
 
     def get_points_current(self, obj):
         return obj.current_points()
@@ -86,6 +102,7 @@ class ChallengeAdminSerializer(serializers.ModelSerializer):
             "slug",
             "description",
             "category",
+            "event",
             "scoring_model",
             "points_min",
             "points_max",

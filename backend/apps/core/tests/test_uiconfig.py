@@ -5,7 +5,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 
 from apps.core.models import UiConfig
-from apps.challenges.models import Category, Tag
+from apps.challenges.models import Category, Tag, Event
 
 
 class UiConfigApiTests(TestCase):
@@ -60,6 +60,20 @@ class UiConfigApiTests(TestCase):
         data = resp.json()
         self.assertEqual(data["layout_by_tag"].get("Crypto"), "list")
 
+    def test_post_event_override(self):
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        admin = User.objects.create_user(username="admin6", email="f@f", password="password-strong-123456", is_staff=True, is_superuser=True)
+        self.client.force_authenticate(user=admin)
+
+        Event.objects.create(name="CTF Finals", slug="ctf-finals")
+        payload = {"layout_by_event": {"ctf-finals": "grid"}}
+        resp = self.client.post("/api/ui/config", payload, format="json")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["layout_by_event"].get("ctf-finals"), "grid")
+
     def test_post_unknown_category(self):
         from django.contrib.auth import get_user_model
 
@@ -79,5 +93,16 @@ class UiConfigApiTests(TestCase):
         self.client.force_authenticate(user=admin)
 
         payload = {"layout_by_tag": {"NoSuchTag": "grid"}}
+        resp = self.client.post("/api/ui/config", payload, format="json")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_post_unknown_event(self):
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        admin = User.objects.create_user(username="admin7", email="g@g", password="password-strong-123456", is_staff=True, is_superuser=True)
+        self.client.force_authenticate(user=admin)
+
+        payload = {"layout_by_event": {"unknown-event": "grid"}}
         resp = self.client.post("/api/ui/config", payload, format="json")
         self.assertEqual(resp.status_code, 400)

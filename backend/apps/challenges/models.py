@@ -33,6 +33,19 @@ class Category(models.Model):
         return self.name
 
 
+class Event(models.Model):
+    name = models.CharField(max_length=160, unique=True)
+    slug = models.SlugField(max_length=180, unique=True)
+    starts_at = models.DateTimeField(null=True, blank=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["slug"])]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Tag(models.Model):
     name = models.CharField(max_length=120, unique=True)
 
@@ -58,6 +71,7 @@ class Challenge(models.Model):
     slug = models.SlugField(max_length=220, unique=True)
     description = models.TextField()
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
+    event = models.ForeignKey('Event', on_delete=models.SET_NULL, null=True, blank=True, related_name="challenges")
     tags = models.ManyToManyField(Tag, blank=True)
     scoring_model = models.CharField(max_length=12, choices=SCORING_CHOICES, default=SCORING_STATIC)
     points_min = models.IntegerField(default=50)

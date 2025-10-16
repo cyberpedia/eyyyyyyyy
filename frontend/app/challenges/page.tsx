@@ -9,6 +9,8 @@ type Challenge = {
   slug: string;
   category: string | null;
   category_slug: string | null;
+  event: string | null;
+  event_slug: string | null;
   points_current: number;
   points_min: number;
   points_max: number;
@@ -20,26 +22,36 @@ type Challenge = {
 type UiConfig = {
   challenge_list_layout: "list" | "grid" | "tabs" | "cards" | "masonry" | "grouped_tags" | "collapsible";
   layout_by_category?: Record<string, string>;
+  layout_by_tag?: Record<string, string>;
+  layout_by_event?: Record<string, string>;
 };
+
+type EventRow = { id: number; name: string; slug: string; starts_at?: string | null; ends_at?: string | null };
 
 export default function ChallengesPage() {
   const [data, setData] = useState<Challenge[]>([]);
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<string>(""); // empty => all
   const [loading, setLoading] = useState(true);
   const [ui, setUi] = useState<UiConfig>({ challenge_list_layout: "list" });
   const [activeTab, setActiveTab] = useState<string>("All");
   const { notify, notifyError } = useToast();
 
-  const loadChallenges = () => {
+  const load = () => {
     setLoading(true);
     notify("info", "Loading challenges...");
+    const q = new URLSearchParams({ released: "1" });
+    if (selectedEvent) q.set("event", selectedEvent);
     Promise.all([
-      fetch("/api/challenges?released=1", { credentials: "include" }).then((r) => r.json()),
+      fetch(`/api/challenges?${q.toString()}`, { credentials: "include" }).then((r) => r.json()),
       fetch("/api/ui/config", { credentials: "include" }).then((r) => r.json()).catch(() => ({ challenge_list_layout: "list" })),
+      fetch("/api/events", { credentials: "include" }).then((r) => r.json()).catch(() => ({ results: [] })),
     ])
-      .then(([chals, uiCfg]) => {
+      .then(([chals, uiCfg, evs]) => {
         const list = Array.isArray(chals.results) ? chals.results : chals;
         setData(list);
         setUi(uiCfg);
+        setEvents(evs.results || []);
       })
       .catch((e) => {
         notifyError(e?.message || "Failed to load challenges.");
@@ -48,8 +60,9 @@ export default function ChallengesPage() {
   };
 
   useEffect(() => {
-    loadChallenges();
-  }, []);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEvent]);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -94,21 +107,37 @@ export default function ChallengesPage() {
 
   if (loading) return <div>Loading...</div>;
 
-  const layout = ui.challenge_list_layout || "list";
+  const baseLayout = ui.challenge_list_layout || "list";
+  const layout = (selectedEvent && ui.layout_by_event?.[selectedEvent]) || baseLayout;
   const hasOverrides = !!(ui.layout_by_category && Object.keys(ui.layout_by_category).length > 0);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-2xl font-semibold">Challenges</h1>
-        <button
-          className="px-3 py-2 border rounded hover:bg-gray-50"
-          onClick={loadChallenges}
-          disabled={loading}
-          title="Reload challenges list"
-        >
-          {loading ? "Loading…" : "Refresh"}
-        </button>
+        <div className="flex items-center gap-2">
+          {events.length > 0 && (
+            <select
+              className="border rounded px-2 py-1"
+              value={selectedEvent}
+              onChange={(e) => setSelectedEvent(e.target.value)}
+              title="Filter by event"
+            >
+              <option value="">All events</option>
+              {events.map((ev) => (
+                <option key={ev.slug} value={ev.slug}>{ev.name}</option>
+              ))}
+            </select>
+          )}
+          <button
+            className="px-3 py-2 border rounded hover:bg-gray-50"
+            onClick={load}
+            disabled={loading}
+            title="Reload challenges list"
+          >
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+        </div>
       </div>
 
       {layout === "tabs" && (

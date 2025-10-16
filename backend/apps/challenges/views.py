@@ -21,6 +21,7 @@ from .models import (
     verify_flag,
     Category,
     Tag,
+    Event,
     ChallengeSnapshot,
     DefenseToken,
     AttackEvent,
@@ -34,6 +35,7 @@ from .serializers import (
     SubmissionResponseSerializer,
     ChallengeAdminSerializer,
     CategorySerializer,
+    EventSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,11 +49,14 @@ class ChallengeListView(ListAPIView):
         qs = Challenge.objects.all().order_by("id")
         category = self.request.query_params.get("category")
         tag = self.request.query_params.get("tag")
+        event = self.request.query_params.get("event")
         released = self.request.query_params.get("released")
         if category:
             qs = qs.filter(category__slug=category)
         if tag:
             qs = qs.filter(tags__name=tag)
+        if event:
+            qs = qs.filter(event__slug=event)
         if released == "1":
             qs = qs.filter(released_at__lte=timezone.now())
         return qs.distinct()
@@ -264,6 +269,15 @@ class TagsListView(APIView):
         rows = Tag.objects.all().order_by("name")
         from .serializers import TagSerializer as _TagSerializer
         data = _TagSerializer(rows, many=True).data
+        return Response({"results": data})
+
+
+class EventsListView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        rows = Event.objects.all().order_by("-starts_at", "name")
+        data = EventSerializer(rows, many=True).data
         return Response({"results": data})
 
 
