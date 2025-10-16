@@ -54,7 +54,7 @@ function setupFetch() {
     if (url === "/api/users/me" && method === "GET") {
       return Promise.resolve(jsonResponse({ isSuperuser: true, isStaff: true }));
     }
-    if (url?.startsWith("/api/ops/rate-limits") && method === "GET") {
+    if (url === "/api/ops/rate-limits" && method === "GET") {
       return Promise.resolve(jsonResponse({ defaults, db_overrides: [], effective, cache: {} }));
     }
     if (url === "/api/ops/rate-limits/presets" && method === "GET") {
@@ -95,7 +95,7 @@ function setupFetchSingleScope() {
     if (url === "/api/users/me" && method === "GET") {
       return Promise.resolve(jsonResponse({ isSuperuser: true, isStaff: true }));
     }
-    if (url?.startsWith("/api/ops/rate-limits") && method === "GET") {
+    if (url === "/api/ops/rate-limits" && method === "GET") {
       return Promise.resolve(jsonResponse({ defaults, db_overrides: [], effective, cache: {} }));
     }
     if (url === "/api/ops/rate-limits/presets" && method === "GET") {

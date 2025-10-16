@@ -16,14 +16,6 @@ vi.mock("next/navigation", () => {
   };
 });
 
-// Mock next/navigation useRouter so component can render without Next router
-const pushMock = vi.fn();
-vi.mock("next/navigation", () => {
-  return {
-    useRouter: () => ({ push: pushMock }),
-  };
-});
-
 type JsonResp = { ok: boolean; status: number; json: () => Promise<any> };
 
 function jsonResponse(data: any, status = 200): JsonResp {

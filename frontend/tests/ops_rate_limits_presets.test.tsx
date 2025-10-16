@@ -55,7 +55,7 @@ function setupFetch(superuser: boolean) {
   const fetchMock = vi.fn((input: any, init?: any) => {
     const url = typeof input === "string" ? input : input?.url;
     const method = (init?.method || "GET").toUpperCase();
-    if (url?.startsWith("/api/ops/rate-limits") && method === "GET") {
+    if (url === "/api/ops/rate-limits" && method === "GET") {
       return Promise.resolve(jsonResponse({ defaults, db_overrides: [], effective, cache: {} }));
     }
     if (url === "/api/ops/rate-limits/presets" && method === "GET") {
@@ -71,7 +71,7 @@ function setupFetch(superuser: boolean) {
       return Promise.resolve(jsonResponse({ ok: true }));
     }
     // Reload requests after save
-    if (url?.startsWith("/api/ops/rate-limits") && method === "GET") {
+    if (url === "/api/ops/rate-limits" && method === "GET") {
       return Promise.resolve(jsonResponse({ defaults, db_overrides: [], effective, cache: {} }));
     }
     if (url === "/api/ops/rate-limits/presets" && method === "GET") {

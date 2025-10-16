@@ -16,14 +16,6 @@ vi.mock("next/navigation", () => {
   };
 });
 
-// Mock next/navigation useRouter
-const pushMock = vi.fn();
-vi.mock("next/navigation", () => {
-  return {
-    useRouter: () => ({ push: pushMock }),
-  };
-});
-
 type JsonResp = { ok: boolean; status: number; json: () => Promise<any> };
 
 function jsonResponse(data: any, status = 200): JsonResp {
@@ -56,7 +48,7 @@ function setupFetch() {
     if (url === "/api/users/me" && method === "GET") {
       return Promise.resolve(jsonResponse({ isSuperuser: true, isStaff: true }));
     }
-    if (url?.startsWith("/api/ops/rate-limits") && method === "GET") {
+    if (url === "/api/ops/rate-limits" && method === "GET") {
       return Promise.resolve(jsonResponse({ defaults, db_overrides, effective, cache: {} }));
     }
     if (url === "/api/ops/rate-limits/presets" && method === "GET") {

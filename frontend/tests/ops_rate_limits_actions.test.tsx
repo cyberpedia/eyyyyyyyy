@@ -41,7 +41,7 @@ function setupFetch(initial: {
       return Promise.resolve(jsonResponse({ isSuperuser: !!initial.superuser, isStaff: true }));
     }
 
-    if (url?.startsWith("/api/ops/rate-limits") && method === "GET") {
+    if (url === "/api/ops/rate-limits" && method === "GET") {
       return Promise.resolve(
         jsonResponse({
           defaults: initial.defaults,
@@ -80,7 +80,7 @@ function setupFetch(initial: {
       );
     }
 
-    if (url?.startsWith("/api/ops/rate-limits") && method === "GET") {
+    if (url === "/api/ops/rate-limits" && method === "GET") {
       return Promise.resolve(
         jsonResponse({
           defaults: initial.defaults,
