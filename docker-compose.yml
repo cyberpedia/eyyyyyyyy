@@ -1,0 +1,80 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ctf
+      POSTGRES_USER: ctf
+      POSTGRES_PASSWORD: ctf
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DJANGO_DEBUG: "1"
+      POSTGRES_HOST: db
+      POSTGRES_DB: ctf
+      POSTGRES_USER: ctf
+      POSTGRES_PASSWORD: ctf
+      REDIS_URL: redis://redis:6379/1
+      CHANNEL_REDIS_URL: redis://redis:6379/2
+      CELERY_BROKER_URL: redis://redis:6379/3
+      CELERY_RESULT_BACKEND: redis://redis:6379/4
+      FLAG_HMAC_PEPPER: dev-pepper-change-me
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DJANGO_DEBUG: "1"
+      POSTGRES_HOST: db
+      POSTGRES_DB: ctf
+      POSTGRES_USER: ctf
+      POSTGRES_PASSWORD: ctf
+      REDIS_URL: redis://redis:6379/1
+      CHANNEL_REDIS_URL: redis://redis:6379/2
+      CELERY_BROKER_URL: redis://redis:6379/3
+      CELERY_RESULT_BACKEND: redis://redis:6379/4
+      FLAG_HMAC_PEPPER: dev-pepper-change-me
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+    command: ["celery", "-A", "ctfplatform", "worker", "--loglevel=info"]
+    depends_on:
+      - db
+      - redis
+  beat:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DJANGO_DEBUG: "1"
+      POSTGRES_HOST: db
+      POSTGRES_DB: ctf
+      POSTGRES_USER: ctf
+      POSTGRES_PASSWORD: ctf
+      REDIS_URL: redis://redis:6379/1
+      CHANNEL_REDIS_URL: redis://redis:6379/2
+      CELERY_BROKER_URL: redis://redis:6379/3
+      CELERY_RESULT_BACKEND: redis://redis:6379/4
+      FLAG_HMAC_PEPPER: dev-pepper-change-me
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+    command: ["celery", "-A", "ctfplatform", "beat", "--loglevel=info"]
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  db_data:

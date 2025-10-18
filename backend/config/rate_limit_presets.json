@@ -1,0 +1,30 @@
+{
+  "presets": {
+    "competition": {
+      "flag-submit": { "user_rate": "10/min", "ip_rate": "30/min" },
+      "login": { "user_rate": "", "ip_rate": "5/min" }
+    },
+    "practice": {
+      "flag-submit": { "user_rate": "30/min", "ip_rate": "60/min" },
+      "login": { "user_rate": "", "ip_rate": "30/min" }
+    },
+    "heavy": {
+      "flag-submit": { "user_rate": "20/min", "ip_rate": "100/min" },
+      "login": { "user_rate": "", "ip_rate": "15/min" }
+    }
+  },
+  "env_presets": {
+    "dev": {
+      "flag-submit": { "user_rate": "120/min", "ip_rate": "240/min" },
+      "login": { "user_rate": "", "ip_rate": "60/min" }
+    },
+    "staging": {
+      "flag-submit": { "user_rate": "30/min", "ip_rate": "60/min" },
+      "login": { "user_rate": "", "ip_rate": "15/min" }
+    },
+    "prod": {
+      "flag-submit": { "user_rate": "10/min", "ip_rate": "30/min" },
+      "login": { "user_rate": "", "ip_rate": "5/min" }
+    }
+  }
+}

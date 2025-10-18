@@ -1,0 +1,61 @@
+image:
+  repository: example/ctf-backend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8000
+
+env:
+  DJANGO_DEBUG: "0"
+  FLAG_HMAC_PEPPER: "change-me"
+  REDIS_URL: "redis://redis:6379/1"
+  CHANNEL_REDIS_URL: "redis://redis:6379/2"
+  CELERY_BROKER_URL: "redis://redis:6379/3"
+  CELERY_RESULT_BACKEND: "redis://redis:6379/4"
+
+frontend:
+  enabled: false
+  image:
+    repository: example/ctf-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+  env:
+    NEXT_PUBLIC_API_BASE_URL: "/api"
+  ingress:
+    enabled: false
+    host: ""
+    annotations: {}
+
+redis:
+  enabled: false
+  image: redis:7
+  port: 6379
+
+postgres:
+  enabled: false
+  image: postgres:15
+  port: 5432
+  persistence:
+    enabled: false
+    size: 5Gi
+  env:
+    POSTGRES_DB: ctf
+    POSTGRES_USER: ctf
+    POSTGRES_PASSWORD: ctf
+
+prometheus:
+  enabled: false
+  scrapeInterval: 30s
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi

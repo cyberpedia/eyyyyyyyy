@@ -1,0 +1,817 @@
+openapi: 3.0.3
+info:
+  title: CTF Platform API
+  version: 0.1.0
+  description: REST API for the CTF platform (browser uses session auth; JWT reserved for CLI/mobile).
+servers:
+  - url: https://api.example-ctf.com
+    description: Production
+  - url: https://staging-api.example-ctf.com
+    description: Staging
+  - url: http://localhost:8000
+    description: Local dev
+tags:
+  - name: Auth
+  - name: Users
+  - name: Teams
+  - name: Challenges
+  - name: Leaderboard
+  - name: Instances
+  - name: Content
+  - name: Admin
+security:
+  - cookieAuth: []
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, email, password]
+              properties:
+                username: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login (session cookie)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: OK
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (invalidate session)
+      responses:
+        "204":
+          description: No Content
+  /api/auth/2fa/enable:
+    post:
+      tags: [Auth]
+      summary: Enable TOTP 2FA
+      responses:
+        "200":
+          description: Returns TOTP provisioning details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  otpauth_url: { type: string }
+                  secret: { type: string }
+  /api/auth/2fa/verify:
+    post:
+      tags: [Auth]
+      summary: Verify TOTP 2FA to finalize enabling
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        "204":
+          description: Enabled
+        "400":
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/token/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh JWT (CLI/mobile)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: New access token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access: { type: string }
+
+  /api/users/me:
+    get:
+      tags: [Users]
+      summary: Get current user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+    put:
+      tags: [Users]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+  /api/users/{id}:
+    get:
+      tags: [Users]
+      summary: Public user profile by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /api/users/me/notifications:
+    get:
+      tags: [Users]
+      summary: List my notifications
+      parameters:
+        - in: query
+          name: unread
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+
+  /api/teams:
+    post:
+      tags: [Teams]
+      summary: Create a team
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamPublic'
+  /api/teams/{id}:
+    get:
+      tags: [Teams]
+      summary: Get team by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamPublic'
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /api/teams/{id}/invite:
+    post:
+      tags: [Teams]
+      summary: Invite a user to the team
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username]
+              properties:
+                username: { type: string }
+      responses:
+        "204":
+          description: Invitation sent
+  /api/teams/{id}/join:
+    post:
+      tags: [Teams]
+      summary: Join team via invite or open policy
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Joined
+  /api/teams/{id}/transfer:
+    post:
+      tags: [Teams]
+      summary: Transfer captain role
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newCaptainUserId]
+              properties:
+                newCaptainUserId: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Transferred
+
+  /api/challenges:
+    get:
+      tags: [Challenges]
+      summary: List challenges
+      parameters:
+        - in: query
+          name: category
+          schema: { type: string }
+        - in: query
+          name: tag
+          schema: { type: string }
+        - in: query
+          name: solved
+          schema: { type: boolean }
+        - in: query
+          name: released
+          schema: { type: integer, enum: [0, 1] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChallengeListItem'
+  /api/challenges/{id}:
+    get:
+      tags: [Challenges]
+      summary: Challenge details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeDetail'
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /api/challenges/{id}/submit:
+    post:
+      tags: [Challenges]
+      summary: Submit a flag
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionRequest'
+      responses:
+        "200":
+          description: OK (correct or incorrect)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionResponse'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
+  /api/challenges/{id}/hints/{hintId}/unlock:
+    post:
+      tags: [Challenges]
+      summary: Unlock a hint
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: hintId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Unlocked
+  /api/challenges/{id}/writeups:
+    get:
+      tags: [Challenges]
+      summary: List approved write-ups for a challenge
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WriteUp'
+    post:
+      tags: [Challenges]
+      summary: Submit a write-up (requires moderation)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WriteUpCreate'
+      responses:
+        "201":
+          description: Submitted for moderation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WriteUp'
+
+  /api/leaderboard:
+    get:
+      tags: [Leaderboard]
+      summary: Live leaderboard (respects freeze)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  as_of: { type: string, format: date-time }
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LeaderboardRow'
+  /api/leaderboard/snapshots/{snapshotId}:
+    get:
+      tags: [Leaderboard]
+      summary: Get a leaderboard snapshot
+      parameters:
+        - in: path
+          name: snapshotId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created_at: { type: string, format: date-time }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LeaderboardRow'
+
+  /api/challenges/{id}/instances/start:
+    post:
+      tags: [Instances]
+      summary: Start a dynamic challenge instance
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "202":
+          description: Provisioning started
+  /api/instances/{id}/stop:
+    post:
+      tags: [Instances]
+      summary: Stop an instance
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "202":
+          description: Stopping
+  /api/instances/{id}/metrics:
+    get:
+      tags: [Instances]
+      summary: Get instance metrics
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstanceMetrics'
+
+  /api/content/pages/{slug}:
+    get:
+      tags: [Content]
+      summary: Get a content page (rules, FAQ, homepage text)
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentPage'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/challenges:
+    get:
+      tags: [Admin]
+      summary: List challenges (admin)
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [Admin]
+      summary: Create challenge (admin)
+      responses:
+        "201":
+          description: Created
+  /api/admin/challenges/{id}:
+    get:
+      tags: [Admin]
+      summary: Get challenge (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+        "404":
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Admin]
+      summary: Update challenge (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Updated
+    delete:
+      tags: [Admin]
+      summary: Delete challenge (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Deleted
+
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: List users (admin)
+      responses:
+        "200":
+          description: OK
+  /api/admin/users/{id}:
+    get:
+      tags: [Admin]
+    put:
+      tags: [Admin]
+    delete:
+      tags: [Admin]
+  /api/admin/teams:
+    get:
+      tags: [Admin]
+      summary: List teams (admin)
+      responses:
+        "200":
+          description: OK
+  /api/admin/teams/{id}:
+    get:
+      tags: [Admin]
+    put:
+      tags: [Admin]
+    delete:
+      tags: [Admin]
+  /api/admin/tags:
+    get:
+      tags: [Admin]
+    post:
+      tags: [Admin]
+  /api/admin/writeups:
+    get:
+      tags: [Admin]
+      summary: Moderation queue
+      responses:
+        "200":
+          description: OK
+  /api/admin/writeups/{id}/approve:
+    post:
+      tags: [Admin]
+      summary: Approve a write-up
+      responses:
+        "204":
+          description: Approved
+  /api/admin/writeups/{id}/reject:
+    post:
+      tags: [Admin]
+      summary: Reject a write-up
+      responses:
+        "204":
+          description: Rejected
+  /api/admin/instances:
+    get:
+      tags: [Admin]
+      summary: List running instances
+      responses:
+        "200":
+          description: OK
+  /api/admin/templates:
+    get:
+      tags: [Admin]
+      summary: List challenge templates
+      responses:
+        "200":
+          description: OK
+  /api/admin/audit:
+    get:
+      tags: [Admin]
+      summary: Query audit log
+      parameters:
+        - in: query
+          name: actor
+          schema: { type: string }
+        - in: query
+          name: target
+          schema: { type: string }
+        - in: query
+          name: action
+          schema: { type: string }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: OK
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+    NotFound:
+      description: Not found
+    TooManyRequests:
+      description: Rate limit exceeded
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        detail: { type: string }
+
+    UserPublic:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        teamId: { type: string, format: uuid, nullable: true }
+        score: { type: integer }
+
+    UserUpdate:
+      type: object
+      properties:
+        avatarUrl: { type: string, nullable: true }
+        bio: { type: string, nullable: true }
+
+    TeamPublic:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        captainUserId: { type: string, format: uuid }
+        membersCount: { type: integer }
+        score: { type: integer }
+
+    ChallengeListItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        slug: { type: string }
+        category: { type: string }
+        points_current: { type: integer }
+        points_min: { type: integer }
+        points_max: { type: integer }
+        tags:
+          type: array
+          items: { type: string }
+        solved: { type: boolean }
+        is_dynamic: { type: boolean }
+        released_at: { type: string, format: date-time }
+
+    ChallengeDetail:
+      allOf:
+        - $ref: '#/components/schemas/ChallengeListItem'
+        - type: object
+          properties:
+            description: { type: string }
+            hints:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  cost_points: { type: integer }
+                  unlocked: { type: boolean }
+            attachments:
+              type: array
+              items:
+                type: object
+                properties:
+                  filename: { type: string }
+                  url: { type: string }
+
+    SubmissionRequest:
+      type: object
+      required: [flag]
+      properties:
+        flag: { type: string }
+
+    SubmissionResponse:
+      type: object
+      properties:
+        correct: { type: boolean }
+        points_awarded: { type: integer }
+        first_blood: { type: boolean }
+        challenge_id: { type: string, format: uuid }
+        team_total: { type: integer }
+        message: { type: string }
+
+    WriteUp:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        team_id: { type: string, format: uuid }
+        challenge_id: { type: string, format: uuid }
+        content_md: { type: string, nullable: true }
+        content_json: { type: object, nullable: true }
+        status: { type: string, enum: [pending, approved, rejected] }
+        created_at: { type: string, format: date-time }
+        published_at: { type: string, format: date-time, nullable: true }
+
+    WriteUpCreate:
+      type: object
+      properties:
+        content_md: { type: string, nullable: true }
+        content_json: { type: object, nullable: true }
+
+    Notification:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        payload: { type: object }
+        read_at: { type: string, format: date-time, nullable: true }
+
+    LeaderboardRow:
+      type: object
+      properties:
+        rank: { type: integer }
+        team_id: { type: string, format: uuid }
+        team_name: { type: string }
+        score: { type: integer }
+        last_solve_at: { type: string, format: date-time, nullable: true }
+
+    InstanceMetrics:
+      type: object
+      properties:
+        cpu_millicores: { type: integer }
+        mem_mb: { type: integer }
+        restarts: { type: integer }
+        last_active_at: { type: string, format: date-time }
+
+    ContentPage:
+      type: object
+      properties:
+        slug: { type: string }
+        title: { type: string }
+        content_md: { type: string, nullable: true }
+        content_json: { type: object, nullable: true }
+        version: { type: integer }
+        published: { type: boolean }
