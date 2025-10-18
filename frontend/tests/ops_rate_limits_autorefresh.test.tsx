@@ -79,6 +79,8 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
 
     // Switch to fake timers before enabling, so setInterval is created under fake timers
     vi.useFakeTimers();
+    const base = new Date("2023-01-01T00:00:00Z");
+    vi.setSystemTime(base);
 
     // Toggle Auto-refresh
     const checkbox = screen.getByRole("checkbox");
@@ -112,8 +114,11 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
     // Advance timers past interval to trigger reload
     await act(async () => {
       vi.advanceTimersByTime(31000);
+      // keep Date.now in sync with fake timers
+      vi.setSystemTime(new Date(base.getTime() + 31000));
     });
     // allow async fetch to be invoked
+    await Promise.resolve();
     await Promise.resolve();
 
     const afterGetCount = fetchMock.mock.calls.filter(

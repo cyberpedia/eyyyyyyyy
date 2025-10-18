@@ -76,13 +76,16 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
     // Wait for initial load to complete
     await screen.findByText(/Rate Limits \(Ops\)/);
 
-    // Switch to fake timers before enabling so the 1s countdown interval is created under fake timers
+    // Switch to fake timers for countdown ticks, and sync system time with fake timers
     vi.useFakeTimers();
+    let now = new Date("2023-01-01T00:00:00Z");
+    vi.setSystemTime(now);
 
-    // Enable auto-refresh and set interval to 30s
-    const checkbox = screen.getByRole("checkbox");
+    // Advance 1 second
     await act(async () => {
-      fireEvent.click(checkbox);
+      vi.advanceTimersByTime(1000);
+      now = new Date(now.getTime() + 1000);
+      vi.setSystemTime(now);
     });
     const intervalSelect = screen.getByTitle("Auto-refresh interval");
     await act(async () => {
@@ -104,6 +107,8 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
     // Advance another second
     await act(async () => {
       vi.advanceTimersByTime(1000);
+      now = new Date(now.getTime() + 1000);
+      vi.setSystemTime(now);
     });
 
     // Countdown should update to 28s
