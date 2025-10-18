@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { ToastProvider } from "../components/ToastProvider";
 import OpsRateLimitsPage from "../app/ops/rate-limits/page";
 import { vi } from "vitest";
+import { act } from "react-dom/test-utils";
 
 // Safe mock for next/navigation useRouter
 vi.mock("next/navigation", () => {
@@ -81,21 +82,25 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
     const intervalSelect = screen.getByTitle("Auto-refresh interval");
     fireEvent.change(intervalSelect, { target: { value: "30000" } });
 
-    const el = await screen.findByText(/Next refresh in:/);
+    const el = screen.getByText(/Next refresh in:/);
     expect(el.textContent).toContain("30s");
 
     // Advance 1 second
-    vi.advanceTimersByTime(1000);
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
 
     // Countdown should update to 29s
-    const el2 = await screen.findByText(/Next refresh in:/);
+    const el2 = screen.getByText(/Next refresh in:/);
     expect(el2.textContent).toContain("29s");
 
     // Advance another second
-    vi.advanceTimersByTime(1000);
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
 
     // Countdown should update to 28s
-    const el3 = await screen.findByText(/Next refresh in:/);
+    const el3 = screen.getByText(/Next refresh in:/);
     expect(el3.textContent).toContain("28s");
   });
 });

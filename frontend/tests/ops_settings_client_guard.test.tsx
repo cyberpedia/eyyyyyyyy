@@ -1,7 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
+import { ToastProvider } from "../components/ToastProvider";
 import OpsSettingsPage from "../app/ops/settings/page";
 import { vi } from "vitest";
 import { useRouter } from "next/navigation";
+
+const render = (ui: any) =>
+  rtlRender(ui, { wrapper: ({ children }: any) => <ToastProvider>{children}</ToastProvider> });
 
 type JsonResp = { ok: boolean; status: number; json: () => Promise<any> };
 

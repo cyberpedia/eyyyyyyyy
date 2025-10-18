@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { ToastProvider } from "../components/ToastProvider";
 import OpsRateLimitsPage from "../app/ops/rate-limits/page";
 import { vi } from "vitest";
+import { act } from "react-dom/test-utils";
 
 // Safe mock for next/navigation useRouter
 vi.mock("next/navigation", () => {
@@ -89,7 +90,7 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
     expect(window.localStorage.getItem("opsRateLimits:autoRefreshIntervalMs")).toBe("30000");
 
     // Countdown appears
-    const countdownEl = await screen.findByText(/Next refresh in:/);
+    const countdownEl = screen.getByText(/Next refresh in:/);
     expect(countdownEl.textContent).toContain("30s");
 
     // Record initial GET calls count
@@ -98,7 +99,9 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
     ).length;
 
     // Advance timers past interval to trigger reload
-    vi.advanceTimersByTime(31000);
+    await act(async () => {
+      vi.advanceTimersByTime(31000);
+    });
 
     const afterGetCount = fetchMock.mock.calls.filter(
       (c) => c[0] === "/api/ops/rate-limits" && (c[1]?.method || "GET").toUpperCase() === "GET"
