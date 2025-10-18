@@ -160,8 +160,9 @@ describe("Ops Rate Limits apply-only-this-row action", () => {
     // Only one Apply-only button should remain (the other row)
     const remainingApplyButtons = screen.getAllByRole("button", { name: /Apply only this row/i });
     expect(remainingApplyButtons.length).toBe(1);
-    // The remaining row should be the other scope (login)
-    const remainingRow = await screen.findByText("login");
+    // The remaining row should be the other scope (login) within the preview table
+    const previewTableAfter = screen.getByTestId("dry-run-table");
+    const remainingRow = within(previewTableAfter).getByText("login");
     expect(remainingRow).toBeTruthy();
   });
 
