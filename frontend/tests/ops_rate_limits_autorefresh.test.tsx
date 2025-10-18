@@ -75,7 +75,9 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
       </ToastProvider>
     );
 
-    await screen.findByText(/Rate Limits \(Ops\)/);
+    // Avoid findByText with fake timers; flush microtasks so initial load completes
+    await Promise.resolve();
+    await Promise.resolve();
 
     // Toggle Auto-refresh
     const checkbox = screen.getByRole("checkbox");
@@ -108,5 +110,6 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
     ).length;
 
     expect(afterGetCount).toBeGreaterThan(initialGetCount);
+    vi.useRealTimers();
   });
 });
