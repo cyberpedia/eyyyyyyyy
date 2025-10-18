@@ -163,8 +163,9 @@ describe("Ops Rate Limits throttled actions (HTTP 429)", () => {
 
     await screen.findByText(/Rate Limits \(Ops\)/);
 
-    // Use DB Overrides row to clear cache
-    const scopeCell = await screen.findByText("flag-submit");
+    // Use DB Overrides row to clear cache (scope queries within overrides table to avoid ambiguity)
+    const overridesTable = screen.getByTestId("overrides-table");
+    const scopeCell = within(overridesTable).getByText("flag-submit");
     const row = scopeCell.closest("tr")!;
     const clearBtn = within(row).getByRole("button", { name: /Clear cache/i });
     fireEvent.click(clearBtn);
