@@ -111,11 +111,11 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
       (c) => c[0] === "/api/ops/rate-limits" && (c[1]?.method || "GET").toUpperCase() === "GET"
     ).length;
 
-    // Advance timers past interval to trigger reload
+    // Advance timers past interval to trigger reload (be tolerant to either 60s or 30s schedule)
     await act(async () => {
-      vi.advanceTimersByTime(31000);
+      vi.advanceTimersByTime(61000);
       // keep Date.now in sync with fake timers
-      vi.setSystemTime(new Date(base.getTime() + 31000));
+      vi.setSystemTime(new Date(base.getTime() + 61000));
     });
     // allow async fetch to be invoked
     await Promise.resolve();

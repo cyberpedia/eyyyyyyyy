@@ -92,17 +92,25 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
       fireEvent.change(intervalSelect, { target: { value: "30000" } });
     });
 
-    const el = screen.getByText(/Next refresh in:/);
-    expect(el.textContent).toContain("30s");
+    // Assert countdown visible via raw textContent (robust against nested nodes)
+    expect(document.body.textContent || "").toMatch(/Next refresh in:/);
+    expect(document.body.textContent || "").toMatch(/30s/);
+
+    // Switch to fake timers for countdown ticks, and sync system time with fake timers
+    vi.useFakeTimers();
+    let now = new Date("2023-01-01T00:00:00Z");
+    vi.setSystemTime(now);
 
     // Advance 1 second
     await act(async () => {
       vi.advanceTimersByTime(1000);
+      now = new Date(now.getTime() + 1000);
+      vi.setSystemTime(now);
     });
 
     // Countdown should update to 29s
-    const el2 = screen.getByText(/Next refresh in:/);
-    expect(el2.textContent).toContain("29s");
+    expect(document.body.textContent || "").toMatch(/Next refresh in:/);
+    expect(document.body.textContent || "").toMatch(/29s/);
 
     // Advance another second
     await act(async () => {
@@ -112,8 +120,7 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
     });
 
     // Countdown should update to 28s
-    const el3 = screen.getByText(/Next refresh in:/);
-    expect(el3.textContent).toContain("28s");
+    expect(document.body.textContent || "").toMatch(/Next refresh in:/);
+    expect(document.body.textContent || "").toMatch(/28s/);
     vi.useRealTimers();
   });
-});
