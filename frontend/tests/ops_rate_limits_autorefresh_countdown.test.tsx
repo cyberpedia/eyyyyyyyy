@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { ToastProvider } from "../components/ToastProvider";
 import OpsRateLimitsPage from "../app/ops/rate-limits/page";
 import { vi } from "vitest";
-import { act } from "react-dom/test-utils";
+import { act } from "react";
 
 // Safe mock for next/navigation useRouter
 vi.mock("next/navigation", () => {
@@ -76,17 +76,21 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
     // Wait for initial load to complete
     await screen.findByText(/Rate Limits \(Ops\)/);
 
+    // Switch to fake timers before enabling so the 1s countdown interval is created under fake timers
+    vi.useFakeTimers();
+
     // Enable auto-refresh and set interval to 30s
     const checkbox = screen.getByRole("checkbox");
-    fireEvent.click(checkbox);
+    await act(async () => {
+      fireEvent.click(checkbox);
+    });
     const intervalSelect = screen.getByTitle("Auto-refresh interval");
-    fireEvent.change(intervalSelect, { target: { value: "30000" } });
+    await act(async () => {
+      fireEvent.change(intervalSelect, { target: { value: "30000" } });
+    });
 
     const el = screen.getByText(/Next refresh in:/);
     expect(el.textContent).toContain("30s");
-
-    // Switch to fake timers for countdown ticks
-    vi.useFakeTimers();
 
     // Advance 1 second
     await act(async () => {

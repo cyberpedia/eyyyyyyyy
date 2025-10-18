@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { ToastProvider } from "../components/ToastProvider";
 import OpsRateLimitsPage from "../app/ops/rate-limits/page";
 import { vi } from "vitest";
-import { act } from "react-dom/test-utils";
+import { act } from "react";
 
 // Safe mock for next/navigation useRouter
 vi.mock("next/navigation", () => {
@@ -77,13 +77,24 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
     // Wait for initial load to complete
     await screen.findByText(/Rate Limits \(Ops\)/);
 
+    // Switch to fake timers before enabling, so setInterval is created under fake timers
+    vi.useFakeTimers();
+
     // Toggle Auto-refresh
     const checkbox = screen.getByRole("checkbox");
-    fireEvent.click(checkbox);
+    await act(async () => {
+      fireEvent.click(checkbox);
+    });
 
     // Change interval to 30s
     const intervalSelect = screen.getByTitle("Auto-refresh interval");
-    fireEvent.change(intervalSelect, { target: { value: "30000" } });
+    await act(async () => {
+      fireEvent.change(intervalSelect, { target: { value: "30000" } });
+    });oggle Auto-refresh
+    const checkbox = screen.getByRole("checkbox");
+    fireEvent.click(checkbox);
+
+    // Change interval totarget: { value: "30000" } });
 
     // LocalStorage persisted
     expect(window.localStorage.getItem("opsRateLimits:autoRefresh")).toBe("1");
@@ -99,10 +110,11 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
     ).length;
 
     // Advance timers past interval to trigger reload
-    vi.useFakeTimers();
     await act(async () => {
       vi.advanceTimersByTime(31000);
     });
+    // allow async fetch to be invoked
+    await Promise.resolve();
 
     const afterGetCount = fetchMock.mock.calls.filter(
       (c) => c[0] === "/api/ops/rate-limits" && (c[1]?.method || "GET").toUpperCase() === "GET"
