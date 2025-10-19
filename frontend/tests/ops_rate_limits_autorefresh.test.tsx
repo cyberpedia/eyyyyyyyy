@@ -68,6 +68,11 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
   it("persists auto-refresh toggle and interval in localStorage and triggers periodic reloads", async () => {
     const fetchMock = setupFetch();
 
+    // Use fake timers and set base time BEFORE render so initial reloadAll uses fake Date.now
+    vi.useFakeTimers();
+    const base = new Date("2023-01-01T00:00:00Z");
+    vi.setSystemTime(base);
+
     render(
       <ToastProvider>
         <OpsRateLimitsPage />
@@ -76,11 +81,6 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
 
     // Wait for initial load to complete
     await screen.findByText(/Rate Limits \(Ops\)/);
-
-    // Switch to fake timers before enabling, so setInterval is created under fake timers
-    vi.useFakeTimers();
-    const base = new Date("2023-01-01T00:00:00Z");
-    vi.setSystemTime(base);
 
     // Toggle Auto-refresh
     const checkbox = screen.getByRole("checkbox");

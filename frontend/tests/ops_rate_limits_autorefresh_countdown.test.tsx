@@ -67,6 +67,11 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
   it("counts down from 30s to 29s and 28s when enabled", async () => {
     setupFetch();
 
+    // Use fake timers and set base time BEFORE render so initial reloadAll uses fake Date.now
+    vi.useFakeTimers();
+    let now = new Date("2023-01-01T00:00:00Z");
+    vi.setSystemTime(now);
+
     render(
       <ToastProvider>
         <OpsRateLimitsPage />
@@ -75,11 +80,6 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
 
     // Wait for initial load to complete
     await screen.findByText(/Rate Limits \(Ops\)/);
-
-    // Use fake timers and set system time so countdown uses fake Date.now
-    vi.useFakeTimers();
-    let now = new Date("2023-01-01T00:00:00Z");
-    vi.setSystemTime(now);
 
     // Enable auto-refresh and set interval to 30s
     const checkbox = screen.getByRole("checkbox");
@@ -119,4 +119,4 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
 
     vi.useRealTimers();
   });
-});
+}););
