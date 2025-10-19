@@ -6,15 +6,17 @@ import { useToast } from "../../../components/ToastProvider";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSanitize, { defaultSchema, type Schema } from "rehype-sanitize";
 
-const sanitizeSchema = {
-  ...defaultSchema,
+// Build a safe sanitize schema that allows highlight.js class names on code blocks.
+const baseAttrs = (defaultSchema as Schema)?.attributes || {};
+const sanitizeSchema: Schema = {
+  ...((defaultSchema as Schema) || {}),
   attributes: {
-    ...defaultSchema.attributes,
-    code: [...(defaultSchema.attributes.code || []), ["className"]],
-    span: [...(defaultSchema.attributes.span || []), ["className"]],
-    pre: [...(defaultSchema.attributes.pre || []), ["className"]],
+    ...baseAttrs,
+    code: [...(baseAttrs.code || []), ["className"]],
+    span: [...(baseAttrs.span || []), ["className"]],
+    pre: [...(baseAttrs.pre || []), ["className"]],
   },
 };
 
