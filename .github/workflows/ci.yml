@@ -36,6 +36,8 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,9 +47,33 @@ jobs:
         with:
           node-version: "18"
 
-      - name: Install, test, and build
+      - name: Cache npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('frontend/package.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Cache Next.js build cache
+        uses: actions/cache@v3
+        with:
+          path: frontend/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('frontend/package.json') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-
+
+      - name: Install, audit, test, and build
         working-directory: frontend
         run: |
           npm install
+          # Generate audit report without failing the build
+          npm audit --audit-level=moderate --json > audit-report.json || true
           npm test
           npm run build
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-audit-report
+          path: frontend/audit-report.json
