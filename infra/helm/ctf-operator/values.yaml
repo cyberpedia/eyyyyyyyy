@@ -1,9 +1,0 @@
-image:
-  repository: example/ctf-operator
-  tag: latest
-  pullPolicy: IfNotPresent
-
-namespace: default
-
-rbac:
-  create: true
