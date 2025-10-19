@@ -3,6 +3,7 @@ import { ToastProvider } from "../components/ToastProvider";
 import OpsRateLimitsPage from "../app/ops/rate-limits/page";
 import { vi } from "vitest";
 import { useRouter } from "next/navigation";
+import { act } from "react";
 
 const render = (ui: any) =>
   rtlRender(ui, { wrapper: ({ children }: any) => <ToastProvider>{children}</ToastProvider> });
@@ -42,9 +43,13 @@ describe("Ops Rate Limits client-side guard", () => {
       return Promise.resolve(jsonResponse({}));
     });
 
-    render(<OpsRateLimitsPage />);
+    await act(async () => {
+      render(<OpsRateLimitsPage />);
+    });
 
-    await new Promise((r) => setTimeout(r, 0));
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     const { push } = useRouter() as any;
     expect(push).toHaveBeenCalledWith("/login");
@@ -67,9 +72,13 @@ describe("Ops Rate Limits client-side guard", () => {
       return Promise.resolve(jsonResponse({}));
     });
 
-    render(<OpsRateLimitsPage />);
+    await act(async () => {
+      render(<OpsRateLimitsPage />);
+    });
 
-    await new Promise((r) => setTimeout(r, 0));
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     const { push } = useRouter() as any;
     expect(push).not.toHaveBeenCalled();

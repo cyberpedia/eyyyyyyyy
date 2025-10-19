@@ -98,6 +98,13 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
     expect(window.localStorage.getItem("opsRateLimits:autoRefresh")).toBe("1");
     expect(window.localStorage.getItem("opsRateLimits:autoRefreshIntervalMs")).toBe("30000");
 
+    // Force a refresh so lastRefreshedTs is set under fake time
+    const refreshBtn = screen.getByTitle("Reload rate limits and presets");
+    await act(async () => {
+      fireEvent.click(refreshBtn);
+    });
+    await Promise.resolve();
+
     // Countdown appears
     const countdownEl = screen.getByText(/Next refresh in:/);
     expect(countdownEl.textContent).toContain("30s");

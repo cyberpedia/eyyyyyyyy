@@ -3,6 +3,7 @@ import { ToastProvider } from "../components/ToastProvider";
 import OpsWriteUpsPage from "../app/ops/writeups/page";
 import { vi } from "vitest";
 import { useRouter } from "next/navigation";
+import { act } from "react";
 
 const render = (ui: any) =>
   rtlRender(ui, { wrapper: ({ children }: any) => <ToastProvider>{children}</ToastProvider> });
@@ -38,9 +39,13 @@ describe("Ops Write-ups client-side guard", () => {
       return Promise.resolve(jsonResponse({}));
     });
 
-    render(<OpsWriteUpsPage />);
+    await act(async () => {
+      render(<OpsWriteUpsPage />);
+    });
 
-    await new Promise((r) => setTimeout(r, 0));
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     const { push } = useRouter() as any;
     expect(push).toHaveBeenCalledWith("/login");
@@ -59,9 +64,13 @@ describe("Ops Write-ups client-side guard", () => {
       return Promise.resolve(jsonResponse({}));
     });
 
-    render(<OpsWriteUpsPage />);
+    await act(async () => {
+      render(<OpsWriteUpsPage />);
+    });
 
-    await new Promise((r) => setTimeout(r, 0));
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     const { push } = useRouter() as any;
     expect(push).not.toHaveBeenCalled();

@@ -3,6 +3,7 @@ import { ToastProvider } from "../components/ToastProvider";
 import OpsSettingsPage from "../app/ops/settings/page";
 import { vi } from "vitest";
 import { useRouter } from "next/navigation";
+import { act } from "react";
 
 const render = (ui: any) =>
   rtlRender(ui, { wrapper: ({ children }: any) => <ToastProvider>{children}</ToastProvider> });
@@ -34,10 +35,14 @@ describe("Ops Settings client-side guard", () => {
       return Promise.resolve(jsonResponse({}));
     });
 
-    render(<OpsSettingsPage />);
+    await act(async () => {
+      render(<OpsSettingsPage />);
+    });
 
     // Allow effects to run
-    await new Promise((r) => setTimeout(r, 0));
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     const { push } = useRouter() as any;
     expect(push).toHaveBeenCalledWith("/login");
@@ -53,9 +58,13 @@ describe("Ops Settings client-side guard", () => {
       return Promise.resolve(jsonResponse({}));
     });
 
-    render(<OpsSettingsPage />);
+    await act(async () => {
+      render(<OpsSettingsPage />);
+    });
 
-    await new Promise((r) => setTimeout(r, 0));
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     const { push } = useRouter() as any;
     expect(push).not.toHaveBeenCalled();

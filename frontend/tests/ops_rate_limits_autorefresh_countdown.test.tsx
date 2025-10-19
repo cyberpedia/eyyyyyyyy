@@ -91,6 +91,13 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
       fireEvent.change(intervalSelect, { target: { value: "30000" } });
     });
 
+    // Force a refresh so lastRefreshedTs is set under fake time
+    const refreshBtn = screen.getByTitle("Reload rate limits and presets");
+    await act(async () => {
+      fireEvent.click(refreshBtn);
+    });
+    await Promise.resolve();
+
     // Countdown appears at ~30s
     await screen.findByText(/Next refresh in:/);
     expect(document.body.textContent || "").toMatch(/30s/);
