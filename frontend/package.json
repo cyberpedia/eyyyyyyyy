@@ -30,6 +30,7 @@
     "vitest": "^1.6.0",
     "jsdom": "^24.1.0",
     "@testing-library/react": "^16.0.0",
-    "@testing-library/user-event": "^14.5.2"
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^20.12.7"
   }
 }
