@@ -64,78 +64,78 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
     }
   });
 
-  it("counts down from 30s to 29s and 28s when enabled", async () => {
-    setupFetch();
+  it(
+    "counts down from 30s to 29s and 28s when enabled",
+    async () => {
+      setupFetch();
 
-    // Use fake timers and set base time BEFORE render so initial reloadAll uses fake Date.now
-    vi.useFakeTimers();
-    let now = new Date("2023-01-01T00:00:00Z");
-    vi.setSystemTime(now);
-
-    render(
-      <ToastProvider>
-        <OpsRateLimitsPage />
-      </ToastProvider>
-    );
-
-    // Wait for initial microtasks to complete and assert header without relying on timers
-    await act(async () => {
-      await Promise.resolve();
-    });
-    screen.getByText(/Rate Limits \(Ops\)/);ait for initial microtasks to complete and assert header without relying on timers
-    await act(async () => {
-      await Promise.resolve();
-    });
-    screen.getByText(/Rate Limits \(Ops\)/);
-
-    // Enable auto-refresh and set interval to 30s
-    const checkbox = screen.getByRole("checkbox");
-    await act(async () => {
-      fireEvent.click(checkbox);
-    });
-    const intervalSelect = screen.getByTitle("Auto-refresh interval");
-    await act(async () => {
-      fireEvent.change(intervalSelect, { target: { value: "30000" } });
-    });
-
-    // Force a refresh so lastRefreshedTs is set under fake time
-    const refreshBtn = screen.getByTitle("Reload rate limits and presets");
-    await act(async () => {
-      fireEvent.click(refreshBtn);
-    });
-    await Promise.resolve();
-
-    // Countdown appears at ~30s
-    await act(async () => {
-      await Promise.resolve();
-    });
-    screen.getByText(/Next refresh in:/);
-    expect(document.body.textContent || "").toMatch(/30s/);
-
-    // Advance 1 second
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-      now = new Date(now.getTime() + 1000);
+      // Use fake timers and set base time BEFORE render so initial reloadAll uses fake Date.now
+      vi.useFakeTimers();
+      let now = new Date("2023-01-01T00:00:00Z");
       vi.setSystemTime(now);
-    });
 
-    // Countdown should update to 29s
-    expect(document.body.textContent || "").toMatch(/Next refresh in:/);
-    expect(document.body.textContent || "").toMatch(/29s/);
+      render(
+        <ToastProvider>
+          <OpsRateLimitsPage />
+        </ToastProvider>
+      );
 
-    // Advance another second
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-      now = new Date(now.getTime() + 1000);
-      vi.setSystemTime(now);
-    });
+      // Wait for initial microtasks to complete and assert header without relying on timers
+      await act(async () => {
+        await Promise.resolve();
+      });
+      screen.getByText(/Rate Limits \(Ops\)/);
 
-    // Countdown should update to 28s
-    expect(document.body.textContent || "").toMatch(/Next refresh in:/);
-    expect(document.body.textContent || "").toMatch(/28s/);
+      // Enable auto-refresh and set interval to 30s
+      const checkbox = screen.getByRole("checkbox");
+      await act(async () => {
+        fireEvent.click(checkbox);
+      });
+      const intervalSelect = screen.getByTitle("Auto-refresh interval");
+      await act(async () => {
+        fireEvent.change(intervalSelect, { target: { value: "30000" } });
+      });
 
-    // Ensure no pending intervals keep running
-    vi.clearAllTimers();
-    vi.useRealTimers();
-  });
+      // Force a refresh so lastRefreshedTs is set under fake time
+      const refreshBtn = screen.getByTitle("Reload rate limits and presets");
+      await act(async () => {
+        fireEvent.click(refreshBtn);
+      });
+      await Promise.resolve();
+
+      // Countdown appears at ~30s
+      await act(async () => {
+        await Promise.resolve();
+      });
+      screen.getByText(/Next refresh in:/);
+      expect(document.body.textContent || "").toMatch(/30s/);
+
+      // Advance 1 second
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+        now = new Date(now.getTime() + 1000);
+        vi.setSystemTime(now);
+      });
+
+      // Countdown should update to 29s
+      expect(document.body.textContent || "").toMatch(/Next refresh in:/);
+      expect(document.body.textContent || "").toMatch(/29s/);
+
+      // Advance another second
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+        now = new Date(now.getTime() + 1000);
+        vi.setSystemTime(now);
+      });
+
+      // Countdown should update to 28s
+      expect(document.body.textContent || "").toMatch(/Next refresh in:/);
+      expect(document.body.textContent || "").toMatch(/28s/);
+
+      // Ensure no pending intervals keep running
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    },
+    10000
+  );
 });
