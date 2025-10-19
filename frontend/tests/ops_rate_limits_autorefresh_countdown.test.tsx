@@ -82,6 +82,10 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
     await act(async () => {
       await Promise.resolve();
     });
+    screen.getByText(/Rate Limits \(Ops\)/);ait for initial microtasks to complete and assert header without relying on timers
+    await act(async () => {
+      await Promise.resolve();
+    });
     screen.getByText(/Rate Limits \(Ops\)/);
 
     // Enable auto-refresh and set interval to 30s
