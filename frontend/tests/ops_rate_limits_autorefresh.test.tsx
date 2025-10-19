@@ -79,8 +79,11 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
       </ToastProvider>
     );
 
-    // Wait for initial load to complete
-    await screen.findByText(/Rate Limits \(Ops\)/);
+    // Wait for initial microtasks to complete and then assert header
+    await act(async () => {
+      await Promise.resolve();
+    });
+    screen.getByText(/Rate Limits \(Ops\)/);
 
     // Toggle Auto-refresh
     const checkbox = screen.getByRole("checkbox");

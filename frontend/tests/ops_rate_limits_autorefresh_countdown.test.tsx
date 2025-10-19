@@ -99,7 +99,10 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
     await Promise.resolve();
 
     // Countdown appears at ~30s
-    await screen.findByText(/Next refresh in:/);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    screen.getByText(/Next refresh in:/);
     expect(document.body.textContent || "").toMatch(/30s/);
 
     // Advance 1 second
@@ -128,4 +131,4 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
     vi.clearAllTimers();
     vi.useRealTimers();
   });
-}););
+});
