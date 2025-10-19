@@ -129,6 +129,9 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
     ).length;
 
     expect(afterGetCount).toBeGreaterThan(initialGetCount);
+
+    // Ensure no pending intervals keep running
+    vi.clearAllTimers();
     vi.useRealTimers();
   });
 });

@@ -124,6 +124,8 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
     expect(document.body.textContent || "").toMatch(/Next refresh in:/);
     expect(document.body.textContent || "").toMatch(/28s/);
 
+    // Ensure no pending intervals keep running
+    vi.clearAllTimers();
     vi.useRealTimers();
   });
 }););
