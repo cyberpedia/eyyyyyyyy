@@ -92,11 +92,7 @@ describe("Ops Rate Limits auto-refresh and countdown", () => {
     const intervalSelect = screen.getByTitle("Auto-refresh interval");
     await act(async () => {
       fireEvent.change(intervalSelect, { target: { value: "30000" } });
-    });oggle Auto-refresh
-    const checkbox = screen.getByRole("checkbox");
-    fireEvent.click(checkbox);
-
-    // Change interval totarget: { value: "30000" } });
+    });
 
     // LocalStorage persisted
     expect(window.localStorage.getItem("opsRateLimits:autoRefresh")).toBe("1");

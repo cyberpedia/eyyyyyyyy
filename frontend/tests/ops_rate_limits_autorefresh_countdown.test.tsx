@@ -76,30 +76,24 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
     // Wait for initial load to complete
     await screen.findByText(/Rate Limits \(Ops\)/);
 
-    // Switch to fake timers for countdown ticks, and sync system time with fake timers
+    // Use fake timers and set system time so countdown uses fake Date.now
     vi.useFakeTimers();
     let now = new Date("2023-01-01T00:00:00Z");
     vi.setSystemTime(now);
 
-    // Advance 1 second
+    // Enable auto-refresh and set interval to 30s
+    const checkbox = screen.getByRole("checkbox");
     await act(async () => {
-      vi.advanceTimersByTime(1000);
-      now = new Date(now.getTime() + 1000);
-      vi.setSystemTime(now);
+      fireEvent.click(checkbox);
     });
     const intervalSelect = screen.getByTitle("Auto-refresh interval");
     await act(async () => {
       fireEvent.change(intervalSelect, { target: { value: "30000" } });
     });
 
-    // Assert countdown visible via raw textContent (robust against nested nodes)
-    expect(document.body.textContent || "").toMatch(/Next refresh in:/);
+    // Countdown appears at ~30s
+    await screen.findByText(/Next refresh in:/);
     expect(document.body.textContent || "").toMatch(/30s/);
-
-    // Switch to fake timers for countdown ticks, and sync system time with fake timers
-    vi.useFakeTimers();
-    let now = new Date("2023-01-01T00:00:00Z");
-    vi.setSystemTime(now);
 
     // Advance 1 second
     await act(async () => {
@@ -122,5 +116,7 @@ describe("Ops Rate Limits auto-refresh countdown", () => {
     // Countdown should update to 28s
     expect(document.body.textContent || "").toMatch(/Next refresh in:/);
     expect(document.body.textContent || "").toMatch(/28s/);
+
     vi.useRealTimers();
   });
+});
